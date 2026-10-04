@@ -1,0 +1,68 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # Nothing is installed in this job, on purpose. The package depends on
+      # nothing, and a suite that only passes after `npm install` would be
+      # quietly testing somebody else's code.
+
+      # The vectors are rebuilt rather than trusted. If the committed
+      # vectors.json ever drifts from what build.js derives, this fails here
+      # instead of shipping a suite that agrees with nothing.
+      - run: node vectors/build.js
+      - run: git diff --exit-code vectors/vectors.json
+
+      # The package's own vectors, the properties, and the 1,706 cases from
+      # twitter-text's conformance suite.
+      - run: npm test
+
+      # The shipped library, through the shipped CLI, against the shipped
+      # vectors. It exercises bin/ and the package's own export map, which the
+      # unit tests reach directly and a consumer never does.
+      - run: npm run selfcheck
+
+  reference:
+    # This package against X's own library.
+    #
+    # A separate job because it is the only one that installs anything:
+    # twitter-text and twemoji-parser, as dev dependencies. It checks that
+    # src/core.js is what the generator produces from those two packages, that
+    # the link patterns have the same source text as X's, and that the count
+    # and the links agree with X's library on a million and a half generated
+    # strings. `npm ci` uses the lock file, so the versions compared against are
+    # the ones the README names.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run test:reference
+
+  published:
+    # Deliberately a separate job, not a step in the matrix above.
+    #
+    # It makes a network call, so it can fail for reasons that are nobody's
+    # fault. A DNS blip must not hide a real test failure, and a real
+    # disagreement between the package and the published URL must not be buried
+    # under four Node versions of green.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node vectors/compare-published.mjs

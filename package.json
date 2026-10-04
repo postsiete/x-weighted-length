@@ -1,0 +1,70 @@
+{
+  "name": "x-weighted-length",
+  "version": "1.0.0",
+  "description": "What X/Twitter actually charges for a post: the weighted character count, ported from X's own open-source rules, with 71 conformance vectors and a runner that checks ANY implementation against them. A link is 23, and the full stop after it is not part of it. Zero dependencies.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./conformance": "./src/conformance.js",
+    "./vectors": "./vectors/vectors.json",
+    "./vectors.json": "./vectors/vectors.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "bin",
+    "vectors/vectors.json",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "LICENSES"
+  ],
+  "scripts": {
+    "build:core": "node tools/build-core.mjs",
+    "build:vectors": "node vectors/build.js",
+    "test": "node --test test/*.test.js",
+    "test:reference": "node --test test/reference/*.test.js",
+    "selfcheck": "node bin/conformance.js ./src/index.js weightedLength"
+  },
+  "keywords": [
+    "twitter",
+    "x",
+    "tweet",
+    "character-count",
+    "weighted-length",
+    "weightedlength",
+    "tweet-length",
+    "emoji",
+    "grapheme",
+    "cjk",
+    "twitter-text",
+    "conformance",
+    "test-vectors",
+    "280",
+    "url",
+    "link",
+    "t.co"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/postsiete/x-weighted-length.git"
+  },
+  "sideEffects": false,
+  "bin": {
+    "x-conformance": "./bin/conformance.js",
+    "x-weighted-length": "./bin/conformance.js"
+  },
+  "homepage": "https://github.com/postsiete/x-weighted-length#readme",
+  "bugs": {
+    "url": "https://github.com/postsiete/x-weighted-length/issues"
+  },
+  "devDependencies": {
+    "twemoji-parser": "14.0.0",
+    "twitter-text": "3.1.0"
+  }
+}

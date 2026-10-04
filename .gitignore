@@ -1,0 +1,18 @@
+node_modules/
+*.log
+.DS_Store
+
+# Probe modules written by test/runner.test.js to exercise the CLI. Normally
+# deleted immediately; left behind on filesystems where unlink is not permitted,
+# which is why they are ignored rather than merely tidied.
+.tmp-probe-*.mjs
+
+# Git lock and temp-object files this mount will not let git unlink.
+_stale/
+
+# The tarball `npm pack` leaves behind.
+*.tgz
+
+# The owner's own publishing checklist. It is about one machine and one
+# account, so it stays on that machine.
+PUBLISH.txt

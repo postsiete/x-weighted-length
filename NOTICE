@@ -1,0 +1,43 @@
+x-weighted-length
+Copyright (c) 2026 PostSiete
+Licensed under the MIT License (see LICENSE).
+
+This package includes material from two projects published by Twitter, Inc.
+Twitter, Inc. and X Corp. do not endorse this package.
+
+1. twitter-text 3.1.0
+   https://github.com/twitter/twitter-text
+   Copyright 2011 Twitter, Inc.
+   Licensed under the Apache License, Version 2.0 (LICENSES/Apache-2.0.txt).
+
+   What is used:
+   - The regular expressions that find links, including the list of domain
+     endings, and the weights in config/v3.json. They are reproduced in
+     src/core.js, which tools/build-core.mjs assembles from the package's
+     compiled output.
+   - The steps of extractUrlsWithIndices, idna.toAscii and parseTweet, which
+     src/core.js follows.
+   - The conformance cases in test/fixtures/twitter-text-conformance.json,
+     taken from conformance/validate.yml, extract.yml and tlds.yml at commit
+     30e2430d90cff3b46393ea54caf511441983c260.
+
+   What was changed:
+   - The expressions are assembled from named parts in one file rather than
+     loaded one per file, and characters outside ASCII are written as escapes.
+     The assembled expressions have the same source text as the originals.
+   - The link expression is tried one position at a time, behind a check that
+     skips positions where it cannot match. The links found are the same.
+   - The surrounding code is rewritten without the library's helper modules,
+     and Punycode encoding is implemented here from RFC 3492 instead of using
+     the punycode package.
+   - The conformance cases are converted from YAML to JSON; only the sections
+     about weighted length and link extraction are included.
+
+2. twemoji-parser 14.0.0
+   https://github.com/twitter/twemoji-parser
+   Copyright (c) 2018 Twitter, Inc.
+   Licensed under the MIT License (LICENSES/twemoji-parser-MIT.txt).
+
+   What is used: the emoji regular expression, reproduced in src/core.js.
+   What was changed: characters outside ASCII are written as escapes. Nothing
+   else.

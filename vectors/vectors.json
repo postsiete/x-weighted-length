@@ -1,0 +1,514 @@
+{
+  "$comment": "Conformance vectors for X/Twitter weighted character counting. Expected values are derived from the published rules and stated as arithmetic in each `why`; they are not snapshots of any implementation. See README.md, including how to falsify them.",
+  "version": 2,
+  "generated": "2026-10-04",
+  "categories": {
+    "basic": "Plain text in the light ranges. If these fail, nothing else matters.",
+    "heavy": "Characters outside the light ranges, which cost 2. CJK is the common case and the reason a 200-character Japanese post does not fit.",
+    "emoji": "The one-emoji-one-unit rule: an emoji in X's table costs 2 however many code points build it. Weighting the code points one at a time is too high on every emoji built from more than one.",
+    "url": "The flat 23, and where X finds a link: with or without a protocol, on any of the 1,574 endings in its list, stopping before the punctuation that ends a sentence.",
+    "not-a-url": "Text that must NOT be charged 23: an email address, an ending that is not one, a domain glued to a \"#\". A spurious 23 sends an author rewriting copy that already fitted.",
+    "normalisation": "The same visible string must cost the same however it was encoded.",
+    "boundary": "The exact edges of the published ranges. Off-by-one lives here.",
+    "structural": "Empty strings, whitespace, and the degenerate inputs that produce a crash rather than a wrong number."
+  },
+  "vectors": [
+    {
+      "name": "empty",
+      "category": "structural",
+      "text": "",
+      "expected": 0,
+      "why": "Nothing costs nothing."
+    },
+    {
+      "name": "single-space",
+      "category": "structural",
+      "text": " ",
+      "expected": 1,
+      "why": "U+0020 is inside 0x0000–0x10FF, so 1."
+    },
+    {
+      "name": "ascii-hello",
+      "category": "basic",
+      "text": "hello",
+      "expected": 5,
+      "why": "Five Latin letters, all weight 1."
+    },
+    {
+      "name": "ascii-sentence",
+      "category": "basic",
+      "text": "The quick brown fox jumps over the lazy dog.",
+      "expected": 44,
+      "why": "44 characters, every one inside the first light range."
+    },
+    {
+      "name": "newlines-count",
+      "category": "basic",
+      "text": "one\ntwo\nthree",
+      "expected": 13,
+      "why": "Line feeds are U+000A — inside the light range, and they are charged, not ignored."
+    },
+    {
+      "name": "latin-accents-precomposed",
+      "category": "basic",
+      "text": "café",
+      "expected": 4,
+      "why": "U+00E9 is a single code point below 0x1100, so 1 like the rest."
+    },
+    {
+      "name": "cyrillic",
+      "category": "basic",
+      "text": "привет",
+      "expected": 6,
+      "why": "Cyrillic sits at U+0400–U+04FF, inside the first light range. Weight 1, which surprises people who assume \"non-Latin means 2\"."
+    },
+    {
+      "name": "hebrew",
+      "category": "basic",
+      "text": "שלום",
+      "expected": 4,
+      "why": "U+05D0–U+05EA, inside the first light range."
+    },
+    {
+      "name": "thai",
+      "category": "basic",
+      "text": "สวัสดี",
+      "expected": 6,
+      "why": "Thai is U+0E00–U+0E7F, inside the light range. Six code points, six units — note this is more than the four grapheme clusters a reader sees."
+    },
+    {
+      "name": "japanese",
+      "category": "heavy",
+      "text": "こんにちは",
+      "expected": 10,
+      "why": "Five kana at U+3053 upward, all above 0x10FF, so 2 each."
+    },
+    {
+      "name": "chinese",
+      "category": "heavy",
+      "text": "你好世界",
+      "expected": 8,
+      "why": "Four CJK ideographs, 2 each."
+    },
+    {
+      "name": "korean",
+      "category": "heavy",
+      "text": "안녕하세요",
+      "expected": 10,
+      "why": "Five precomposed Hangul syllables at U+AC00 upward, 2 each."
+    },
+    {
+      "name": "mixed-latin-cjk",
+      "category": "heavy",
+      "text": "hello こんにちは",
+      "expected": 16,
+      "why": "5 Latin (5) + 1 space (1) + 5 kana at 2 (10) = 16."
+    },
+    {
+      "name": "emoji-simple",
+      "category": "emoji",
+      "text": "😀",
+      "expected": 2,
+      "why": "One emoji, weight 2. Also the case everyone already passes."
+    },
+    {
+      "name": "emoji-with-variation-selector",
+      "category": "emoji",
+      "text": "❤️",
+      "expected": 2,
+      "why": "U+2764 plus U+FE0F. Two code points, ONE emoji, so 2. Weighted one code point at a time it is 2 + 2 = 4."
+    },
+    {
+      "name": "emoji-skin-tone",
+      "category": "emoji",
+      "text": "👍🏽",
+      "expected": 2,
+      "why": "Thumbs up plus a skin-tone modifier is one emoji at 2, not two emoji at 4."
+    },
+    {
+      "name": "emoji-flag",
+      "category": "emoji",
+      "text": "🇨🇴",
+      "expected": 2,
+      "why": "Two regional indicators forming one flag: 2, not 4. A per-code-point counter reports 4."
+    },
+    {
+      "name": "emoji-zwj-mechanic",
+      "category": "emoji",
+      "text": "🧑‍🔧",
+      "expected": 2,
+      "why": "Person + ZWJ + wrench = one emoji at 2. Per code point it is 200+100+200 = 5 after dividing by scale, and 5 is the number reported in twitter-text#369."
+    },
+    {
+      "name": "emoji-zwj-family",
+      "category": "emoji",
+      "text": "👨‍👩‍👧‍👦",
+      "expected": 2,
+      "why": "Four people joined by three ZWJs — seven code points, one emoji, 2. Per code point it is (200*4 + 100*3)/100 = 11. If you get 11, you fell through to the per-code-point path. If you get 7, you counted code points and forgot the weights. If you get 11 in Python, `len()` gave you 7 and something else went wrong too."
+    },
+    {
+      "name": "emoji-two-adjacent",
+      "category": "emoji",
+      "text": "😀😀",
+      "expected": 4,
+      "why": "Two separate emoji, 2 each. Guards against a cluster walker that swallows neighbours."
+    },
+    {
+      "name": "emoji-in-prose",
+      "category": "emoji",
+      "text": "ship it 🚀",
+      "expected": 10,
+      "why": "\"ship it \" is 8 at weight 1, plus one emoji at 2."
+    },
+    {
+      "name": "emoji-keycap",
+      "category": "emoji",
+      "text": "1️⃣",
+      "expected": 2,
+      "why": "Digit + U+FE0F + U+20E3 is one keycap emoji at 2, not three units."
+    },
+    {
+      "name": "emoji-keycap-without-selector",
+      "category": "emoji",
+      "text": "1⃣",
+      "expected": 2,
+      "why": "Digit + U+20E3 with no U+FE0F between them is still the keycap emoji at 2. Counted apart they are 1 + 2 = 3."
+    },
+    {
+      "name": "emoji-joined-but-not-a-sequence",
+      "category": "emoji",
+      "text": "😀‍😀",
+      "expected": 5,
+      "why": "A joiner between two emoji that do not form a known sequence joins nothing: 2 + 1 + 2 = 5. One unit at 2 is only for sequences in the emoji table."
+    },
+    {
+      "name": "url-https-short",
+      "category": "url",
+      "text": "https://x.com",
+      "expected": 23,
+      "why": "Flat 23 regardless of length — 13 characters charged as 23. Links can cost MORE than they are long."
+    },
+    {
+      "name": "url-https-long",
+      "category": "url",
+      "text": "https://example.com/a/very/long/path?with=query&and=more#fragment",
+      "expected": 23,
+      "why": "Same flat 23. 65 characters charged as 23."
+    },
+    {
+      "name": "url-www-no-scheme",
+      "category": "url",
+      "text": "www.example.com",
+      "expected": 23,
+      "why": "A www. host with no scheme is still linkified."
+    },
+    {
+      "name": "url-bare-domain",
+      "category": "url",
+      "text": "example.com",
+      "expected": 23,
+      "why": "THE ONE THAT UNDERCOUNTS. No scheme, no www., still a link, still 23. A matcher requiring http(s):// or www. reports 11 and tells the author a post fits that the API will reject."
+    },
+    {
+      "name": "url-bare-domain-with-path",
+      "category": "url",
+      "text": "example.com/pricing",
+      "expected": 23,
+      "why": "The path is part of the link, so still one 23 rather than 23 plus the path."
+    },
+    {
+      "name": "url-in-prose",
+      "category": "url",
+      "text": "read this: https://example.com now",
+      "expected": 38,
+      "why": "\"read this: \" is 11 characters at weight 1, the link is a flat 23, and \" now\" is 4. 11 + 23 + 4 = 38. The text either side of a link must keep its own weighting."
+    },
+    {
+      "name": "url-two-links",
+      "category": "url",
+      "text": "https://a.com https://b.com",
+      "expected": 47,
+      "why": "23 + 1 space + 23 = 47."
+    },
+    {
+      "name": "url-adjacent-to-cjk",
+      "category": "url",
+      "text": "こんにちは https://example.com",
+      "expected": 34,
+      "why": "5 kana at 2 (10) + 1 space + 23 = 34. Checks that the link split does not lose the weighting of the text around it."
+    },
+    {
+      "name": "url-then-full-stop",
+      "category": "url",
+      "text": "Read more: https://example.com/post.",
+      "expected": 35,
+      "why": "\"Read more: \" is 11, the link is a flat 23, and the full stop is 1: 35. A path may not END on a full stop, so the stop belongs to the sentence. A matcher that runs to the next space takes it into the link and reports 34: one short, whenever a sentence ends with a link."
+    },
+    {
+      "name": "url-then-comma",
+      "category": "url",
+      "text": "See https://example.com, then reply",
+      "expected": 39,
+      "why": "\"See \" is 4, the link is 23, and \", then reply\" is 12: 39. The comma is not part of the link."
+    },
+    {
+      "name": "url-in-brackets",
+      "category": "url",
+      "text": "(https://example.com)",
+      "expected": 25,
+      "why": "1 + 23 + 1 = 25. The closing bracket has no opening one inside the link, so it stays outside."
+    },
+    {
+      "name": "url-then-question-mark",
+      "category": "url",
+      "text": "Is it https://example.com/pricing?",
+      "expected": 30,
+      "why": "\"Is it \" is 6, the link is 23, the question mark is 1: 30. A query needs something after its \"?\", so a bare one ends the sentence, not the link."
+    },
+    {
+      "name": "url-brackets-inside-the-path",
+      "category": "url",
+      "text": "https://en.wikipedia.org/wiki/Primer_(film)",
+      "expected": 23,
+      "why": "Brackets that open and close inside the path are part of it, which is what keeps a Wikipedia link whole. One link, 23."
+    },
+    {
+      "name": "url-full-stop-is-the-281st",
+      "category": "url",
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa https://example.com.",
+      "expected": 281,
+      "why": "256 + 1 space + 23 + 1 full stop = 281, one over the limit. A counter that takes the stop into the link says 280 and calls this postable. This is the vector that costs somebody a rejected post."
+    },
+    {
+      "name": "url-filename-that-is-a-domain",
+      "category": "url",
+      "text": "I updated README.md",
+      "expected": 33,
+      "why": "\"I updated \" is 10 and README.md is a link at 23, because .md is the country ending of Moldova: 33. A counter that sees nine ordinary characters reports 19."
+    },
+    {
+      "name": "url-government-ending",
+      "category": "url",
+      "text": "whitehouse.gov",
+      "expected": 23,
+      "why": "A bare domain on an ending outside the handful everyone remembers. The list has 1,574 of them; a counter with a short list of its own reports 14."
+    },
+    {
+      "name": "url-missing-space-makes-a-link",
+      "category": "url",
+      "text": "the end.Next sentence",
+      "expected": 36,
+      "why": "\"the \" is 4, \"end.Next\" is a link at 23 because .next is a generic ending and case does not matter, and \" sentence\" is 9: 36. A missing space after a full stop can manufacture a link."
+    },
+    {
+      "name": "url-upper-case",
+      "category": "url",
+      "text": "EXAMPLE.COM",
+      "expected": 23,
+      "why": "Link matching ignores case, so capitals change nothing: 23."
+    },
+    {
+      "name": "url-non-latin-with-protocol",
+      "category": "url",
+      "text": "http://пример.рф",
+      "expected": 23,
+      "why": "With a protocol, a domain in any script is a link: .рф is the Cyrillic country ending of Russia. 23. Compare not-a-url-non-latin-bare."
+    },
+    {
+      "name": "url-bare-domain-query-left-out",
+      "category": "url",
+      "text": "example.com?q=1",
+      "expected": 27,
+      "why": "Without a protocol a query is only kept when a path comes before it. Here the link is example.com at 23 and \"?q=1\" is 4 more: 27. With https:// in front the whole string is one link at 23."
+    },
+    {
+      "name": "not-a-url-eg",
+      "category": "not-a-url",
+      "text": "e.g. this is prose",
+      "expected": 18,
+      "why": "\"e.g.\" is not a link. Charging it 23 would report 37 for an 18-unit sentence and send an author rewriting copy that fits."
+    },
+    {
+      "name": "not-a-url-filename",
+      "category": "not-a-url",
+      "text": "see index.js for details",
+      "expected": 24,
+      "why": ".js is not a domain ending, so this is 24 plain characters. A counter matching any dotted token charges 23 for the filename. Compare url-filename-that-is-a-domain, where .md is an ending."
+    },
+    {
+      "name": "not-a-url-version",
+      "category": "not-a-url",
+      "text": "version 2.78.0 shipped",
+      "expected": 22,
+      "why": "Neither \"78\" nor \"0\" is a domain ending, so a version string is 22 ordinary characters."
+    },
+    {
+      "name": "not-a-url-sentence-end",
+      "category": "not-a-url",
+      "text": "It is done.Then we ship.",
+      "expected": 24,
+      "why": "\"then\" is not a domain ending, so the missing space manufactures nothing and this is 24 characters. That is luck rather than a rule: see url-missing-space-makes-a-link."
+    },
+    {
+      "name": "not-a-url-almost-tld",
+      "category": "not-a-url",
+      "text": "example.coma",
+      "expected": 12,
+      "why": ".coma is not a domain ending, so this is twelve ordinary characters — which means \"example.com\" costs 23 and \"example.coma\" costs 12, and ADDING a character made the post cheaper. Surprising, correct, and the clearest demonstration that link detection is decided on the whole token rather than incrementally."
+    },
+    {
+      "name": "not-a-url-ellipsis",
+      "category": "not-a-url",
+      "text": "wait...what",
+      "expected": 11,
+      "why": "Consecutive dots are not a hostname."
+    },
+    {
+      "name": "not-a-url-email",
+      "category": "not-a-url",
+      "text": "mail jane@example.com today",
+      "expected": 27,
+      "why": "A domain straight after \"@\" is not a link, so the address is 16 ordinary characters: 5 + 16 + 6 = 27. Charging the domain 23 reports 39 and tells an author a post that fits is too long."
+    },
+    {
+      "name": "not-a-url-after-hash",
+      "category": "not-a-url",
+      "text": "#example.com",
+      "expected": 12,
+      "why": "A domain straight after \"#\" is not a link. The same goes for \"$\", \"@\", a letter or a digit. Twelve characters, 12."
+    },
+    {
+      "name": "not-a-url-no-ending",
+      "category": "not-a-url",
+      "text": "http://localhost:3000",
+      "expected": 21,
+      "why": "A protocol is not enough: the host must finish with a recognised ending, and localhost has none. 21 characters, 21."
+    },
+    {
+      "name": "not-a-url-other-scheme",
+      "category": "not-a-url",
+      "text": "ftp://example.com",
+      "expected": 17,
+      "why": "Only http and https start a link, and a bare domain may not directly follow a slash, so nothing here is one. 17 characters, 17."
+    },
+    {
+      "name": "not-a-url-www-without-ending",
+      "category": "not-a-url",
+      "text": "www.example",
+      "expected": 11,
+      "why": "\"www.\" does not make a link; a recognised ending does, and \"example\" is not one. Eleven characters, 11."
+    },
+    {
+      "name": "not-a-url-label-too-long",
+      "category": "not-a-url",
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.com",
+      "expected": 68,
+      "why": "One part of a domain may be at most 63 characters. This one is 64, so the whole string is 68 ordinary characters. At 63 it would be a link at 23."
+    },
+    {
+      "name": "not-a-url-underscore-in-the-name",
+      "category": "not-a-url",
+      "text": "my_site.io",
+      "expected": 10,
+      "why": "An underscore is allowed in a subdomain but not in the name next to the ending, and a bare domain may not start straight after one, so neither \"my_site.io\" nor \"site.io\" is a link. Ten characters, 10."
+    },
+    {
+      "name": "not-a-url-non-latin-bare",
+      "category": "not-a-url",
+      "text": "пример.рф",
+      "expected": 9,
+      "why": "Without a protocol only an ASCII domain is linked. Eight Cyrillic letters and a dot, all at weight 1: 9. Compare url-non-latin-with-protocol."
+    },
+    {
+      "name": "nfc-decomposed-accent",
+      "category": "normalisation",
+      "text": "café",
+      "expected": 4,
+      "why": "\"cafe\" + U+0301 combining acute normalises under NFC to \"café\", four code points at weight 1. Without normalisation this is 5, so the same visible word costs differently depending on which editor produced it."
+    },
+    {
+      "name": "nfc-korean-decomposed",
+      "category": "normalisation",
+      "text": "가",
+      "expected": 2,
+      "why": "Two conjoining jamo normalise under NFC to the single syllable 가 (U+AC00), which is above 0x10FF and so costs 2. Unnormalised, the jamo are also above 0x10FF and would cost 4."
+    },
+    {
+      "name": "boundary-last-light-char",
+      "category": "boundary",
+      "text": "ჿ",
+      "expected": 1,
+      "why": "U+10FF is the last code point of the first light range. Inclusive, so 1."
+    },
+    {
+      "name": "boundary-first-heavy-char",
+      "category": "boundary",
+      "text": "ᄀ",
+      "expected": 2,
+      "why": "U+1100 is one past the range. 2. Together with the previous case this pins the edge in both directions."
+    },
+    {
+      "name": "boundary-general-punctuation-start",
+      "category": "boundary",
+      "text": " ",
+      "expected": 1,
+      "why": "U+2000 opens the second light range."
+    },
+    {
+      "name": "boundary-zwj-alone",
+      "category": "boundary",
+      "text": "‍",
+      "expected": 1,
+      "why": "A bare ZWJ is the last code point of the second range, weight 1. This is the value that makes the family emoji 11 rather than 14 when counted wrongly, so it is worth pinning on its own."
+    },
+    {
+      "name": "boundary-just-past-second-range",
+      "category": "boundary",
+      "text": "‎",
+      "expected": 2,
+      "why": "U+200E, the left-to-right mark, is one past the second range and costs 2. Invisible and expensive."
+    },
+    {
+      "name": "boundary-en-dash",
+      "category": "boundary",
+      "text": "–",
+      "expected": 1,
+      "why": "U+2013 is inside 0x2010–0x201F. Dashes and smart quotes are cheap; that is the point of the third range."
+    },
+    {
+      "name": "boundary-prime",
+      "category": "boundary",
+      "text": "′",
+      "expected": 1,
+      "why": "U+2032 opens the fourth range, 0x2032–0x2037."
+    },
+    {
+      "name": "boundary-just-past-fourth-range",
+      "category": "boundary",
+      "text": "‸",
+      "expected": 2,
+      "why": "One past the last light range."
+    },
+    {
+      "name": "exactly-280-ascii",
+      "category": "structural",
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": 280,
+      "why": "The limit itself. Fits — the comparison is <=, not <."
+    },
+    {
+      "name": "over-by-one",
+      "category": "structural",
+      "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "expected": 281,
+      "why": "One over. The two cases together pin which way the boundary falls."
+    },
+    {
+      "name": "cjk-140-fills-280",
+      "category": "structural",
+      "text": "漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢漢",
+      "expected": 280,
+      "why": "140 ideographs at 2 each is exactly the limit — the arithmetic behind \"a Japanese post gets half as many characters\"."
+    }
+  ]
+}

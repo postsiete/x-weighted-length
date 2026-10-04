@@ -1,0 +1,4 @@
+# Every file here is text, and the tests compare some of them byte for byte
+# (the rebuilt vectors against the committed ones, the generated core against
+# its template), so line endings are LF on every machine.
+* text=auto eol=lf
