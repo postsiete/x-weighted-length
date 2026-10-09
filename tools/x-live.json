@@ -1,0 +1,118 @@
+{
+  "$comment": "What x.com's composer runs to count a post, fingerprinted. tools/build-core.mjs builds src/core.js from twitter-text 3.1.0 and @twemoji/parser 15.0.0, applies the edits below, and refuses to write the core unless every pattern it produces has the SHA-256 recorded here. Each hash is of the pattern's source text as the composer compiles it.",
+  "observed": "2026-10-09T00:27:37Z",
+  "where": "https://x.com/compose/post, signed in, in a desktop browser",
+  "bundle": [
+    "https://abs.twimg.com/responsive-web/client-web/vendor.0ee9932b58969d2ba.js",
+    "https://abs.twimg.com/responsive-web/client-web/main.53d8c7f0078e1404a.js"
+  ],
+  "how": "The composer's own counting functions (parseTweet and extractUrls in the bundle) were called in the page on the 1,731,072 strings test/reference/corpus.js generates, and the digests of their answers are recorded below. test/reference/x-live-reference.js rebuilds the same answers from the published packages and the four differences listed here. The patterns those functions use were captured while they ran and hashed.",
+  "generator": {
+    "file": "test/reference/corpus.js",
+    "function": "makeCorpus",
+    "sha256": "7564adb09f2d0f0bfed42250142e429ac6ae7ce81c4e34f1eae0fcdc03630161",
+    "parts": 4,
+    "strings": 1731072
+  },
+  "digestFormat": "For each run of 50,000 strings, the first 8 hex digits of the SHA-256 of their answer lines joined together. A line is `${weightedLength},${valid ? 1 : 0},${validRangeEnd}|${links}` and a newline, from the composer's parseTweet(s), with links from its extractUrls(s.normalize()) as `${start}:${end}:${url.length}` joined by commas.",
+  "digests": {
+    "0": [
+      "857474f7",
+      "828fa3ad",
+      "3951e3cb",
+      "cd6b0769",
+      "824f02a9",
+      "89f8373a",
+      "22994ed7",
+      "480d8f29",
+      "acc5ad64",
+      "21fef03e",
+      "2006801b"
+    ],
+    "1": [
+      "431b38d6",
+      "a1b494b1",
+      "4c2e6593",
+      "ce5b6749",
+      "6d2f9808",
+      "ae135218",
+      "0c8bf3ad",
+      "673f3c76"
+    ],
+    "2": [
+      "6d54b9bb",
+      "5103a442",
+      "7dd414e8",
+      "99111d57",
+      "919a526b",
+      "5821c590",
+      "29057836",
+      "a5c5a70c"
+    ],
+    "3": [
+      "0e968ddf",
+      "5fad1f26",
+      "cce3d024",
+      "7f42b42e",
+      "ff9e6e9e",
+      "e32bac7e",
+      "91b3d634",
+      "27aeba8c"
+    ]
+  },
+  "patterns": {
+    "link": {
+      "flags": "gi",
+      "length": 13275,
+      "sha256": "360c12c798b4efa91cfd793ddf1a83bcacce75894729ba2cdcc1f66fce9ca48f"
+    },
+    "asciiDomain": {
+      "flags": "gi",
+      "length": 9554,
+      "sha256": "c3391b6c57de37c9e83cf049e371157d9674dc2c2a0c28cf8b9895b2c53b4816"
+    },
+    "tco": {
+      "flags": "i",
+      "length": 96,
+      "sha256": "15a3f00abb72798e30fe9101fd058a280268f07dc4f9d0ef8914c93e29b17eff"
+    },
+    "emoji": {
+      "flags": "g",
+      "length": 12965,
+      "sha256": "83565168cc91b1411d6dec3c6eab00f86ba13d36ba6325d7c9bfe8df966a9573"
+    },
+    "invalid": {
+      "flags": "",
+      "length": 14,
+      "sha256": "e337f9026a4421f533f5795268b5509590aef7e1e255b666c150397a613969ae"
+    },
+    "bareMarkdown": {
+      "flags": "i",
+      "length": 5,
+      "sha256": "640467bfd4e09078d74dbe1c551c9fe9b0c5e3f9d043d291e084067ddd11b2dc"
+    },
+    "punycodeNonAscii": {
+      "flags": "",
+      "length": 10,
+      "sha256": "80bfccd2d9507353813805eb96bd144ee3615805f1aeffd6b406164ad5541b65"
+    }
+  },
+  "endings": {
+    "generic": {
+      "count": 1265,
+      "sha256": "10f234beb1184c4200c4a9349f95a230d6a5fd28150a08e7d2c5512a00b51415"
+    },
+    "country": {
+      "count": 316,
+      "sha256": "58c318f639cf4c4e25e824c0cd54768d2c5436692eac49aac6decf7552e6bb75"
+    }
+  },
+  "differences": [
+    "Seven domain endings that twitter-text 3.1.0 does not have, each placed where the composer's list has it: amazon, kids, music, spa, アマゾン and 亚马逊 (generic), ישראל (country).",
+    "U+FEFF is no longer one of the invalid characters, so it may stand before a link and inside a domain.",
+    "A bare domain ending in .md is not a link. With a protocol it still is.",
+    "The emoji pattern is @twemoji/parser 15.0.0's, with U+1FAF0 moved from the group that takes U+FE0F into the group that takes only a skin tone."
+  ],
+  "differencesAreComplete": "With these four changes switched off and twitter-text 3.1.0 run in Node with twemoji-parser 14.0.0, test/reference/x-live-reference.js gives the same answer as twitter-text on every one of the 1,731,072 strings; with them on, it gives x.com's digests. So these four are the whole difference on that corpus.",
+  "alsoCorrected": "Not a difference in x.com: punycode measures U+0000-U+001F and U+007F in a domain label as ASCII, as x.com's bundled punycode and Node's built-in one do. The first version of this package encoded them, as the npm punycode twitter-text declares (1.4.1) does."
+}

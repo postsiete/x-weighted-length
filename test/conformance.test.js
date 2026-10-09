@@ -93,7 +93,7 @@ test('A LENGTH STATED IN A REASON IS THE LENGTH OF THE TEXT', () => {
 
 test('the suite has not quietly shrunk', () => {
   // A dropped vector is indistinguishable from a passing one unless counted.
-  assert.ok(SUITE.vectors.length >= 71, `only ${SUITE.vectors.length} vectors`);
+  assert.ok(SUITE.vectors.length >= 74, `only ${SUITE.vectors.length} vectors`);
 });
 
 /* ========================================================================== *
@@ -300,10 +300,11 @@ test('URL_WEIGHT is the published transformed length', () => {
   assert.equal(URL_WEIGHT, 23);
 });
 
-test('the list of domain endings is the size of twitter-text\'s, and the README says how many', () => {
-  assert.deepEqual({ ...DOMAIN_ENDINGS }, { generic: 1259, country: 315 });
+test('the list of domain endings is the size of x.com\'s, and the README says how many', () => {
+  // twitter-text's 1,259 generic and 315 country endings, and the seven x.com added.
+  assert.deepEqual({ ...DOMAIN_ENDINGS }, { generic: 1265, country: 316 });
   const total = (DOMAIN_ENDINGS.generic + DOMAIN_ENDINGS.country).toLocaleString('en');
-  assert.equal(total, '1,574');
+  assert.equal(total, '1,581');
   assert.ok(readFileSync(path.join(ROOT, 'README.md'), 'utf8').includes(`${total} domain endings`));
 });
 

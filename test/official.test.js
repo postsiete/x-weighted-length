@@ -5,7 +5,7 @@
  * WHY THESE ARE HERE WHEN THE PACKAGE HAS ITS OWN VECTORS
  * ---------------------------------------------------------------------------
  *
- * The 71 vectors in vectors/ were written by the same person who wrote the
+ * The 74 vectors in vectors/ were written by the same person who wrote the
  * counter, so they share that person's blind spots. For weeks they shared one
  * in particular: every one of the first 49 passed against a counter that took a
  * sentence's full stop into the link before it, charged an email address 23 for
@@ -20,6 +20,13 @@
  * (Apache-2.0, Copyright Twitter, Inc.; see NOTICE).
  *
  * If one of these fails, this package is wrong. There is no second reading.
+ *
+ * x.com has moved on from this suite in five places (test/x-live.test.js pins
+ * them), and none of the 1,706 cases touches one: the suite tests .md only
+ * with a protocol in front, has no U+FEFF and no control characters in a
+ * domain, predates the seven endings, and its emoji cases come out the same
+ * under the 2018 table twitter-text pins and the newer one x.com runs. So
+ * every case still holds, and still has to.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -94,8 +101,10 @@ test('t.co links end at their slug', () => {
 test('EVERY DOMAIN ENDING IN THE LIST IS RECOGNISED: one case each, country and generic', () => {
   run(OFFICIAL.tlds_country, (c) => findLinks(c.text).map((l) => l.text));
   run(OFFICIAL.tlds_generic, (c) => findLinks(c.text).map((l) => l.text));
-  // and the list in the core is the same length as the list the suite walks
-  assert.deepEqual({ ...DOMAIN_ENDINGS }, { generic: OFFICIAL.tlds_generic.length, country: OFFICIAL.tlds_country.length });
+  // The core knows every ending the suite walks, plus the seven x.com added
+  // after the suite was written (six generic, one country). Those seven are
+  // checked the same way, in the suite's own shape, in test/x-live.test.js.
+  assert.deepEqual({ ...DOMAIN_ENDINGS }, { generic: OFFICIAL.tlds_generic.length + 6, country: OFFICIAL.tlds_country.length + 1 });
 });
 
 test('explain() accounts for every unit: its pieces rebuild the text and add up to the count', () => {

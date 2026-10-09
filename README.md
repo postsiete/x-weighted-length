@@ -1,6 +1,6 @@
 # x-weighted-length
 
-**What X actually charges for a post, and 71 conformance vectors so you can check any implementation, including this one.**
+**What X actually charges for a post, and 74 conformance vectors so you can check any implementation, including this one.**
 
 ```bash
 npm install github:postsiete/x-weighted-length
@@ -12,7 +12,7 @@ Already have a counter? Don't install anything. Point the runner at it:
 npx -p github:postsiete/x-weighted-length x-conformance ./your-counter.js
 ```
 
-A plain code-point counter scores **35 out of 71**. [Why that number is the
+A plain code-point counter scores **36 out of 74**. [Why that number is the
 argument](#check-your-own-counter).
 
 ```js
@@ -26,22 +26,26 @@ weightedLength('Read more: https://example.com/post.');  // 35  and the full sto
 fits('a'.repeat(281));                                   // false
 ```
 
+It counts what x.com's composer counts, which is not quite what X's own published library counts: [four differences](#the-library-and-the-site), each read from the code x.com runs and checked against it.
+
 Zero dependencies. ESM. Node 18+ and every current browser.
 
 ---
 
-## Five counters, one suite
+## Six counters, one suite
 
 | Counter | Score | What it gets wrong |
 |---|---|---|
-| `[...text].length` | 35 / 71 | every link, every CJK character, most emoji |
-| The counter this package first shipped with | 56 / 71 | the full stop after a link, `.gov`, an email address |
-| `twitter-text` 3.1.0, as npm installs it today | 70 / 71 | one emoji: its emoji table is from 2018 |
-| `twitter-text` 3.1.0 with the last emoji table X published | 71 / 71 | |
-| This package | 71 / 71 | |
+| `[...text].length` | 36 / 74 | every link, every CJK character, most emoji |
+| The counter this package first shipped with | 59 / 74 | the full stop after a link, `.gov`, an email address |
+| `twitter-text` 3.1.0, as npm installs it today | 70 / 74 | `README.md`, `.music`, and two emoji: its emoji table is from 2018 |
+| `twitter-text` 3.1.0 with the last emoji table X published | 71 / 74 | `README.md`, `.music`, and the black bird |
+| x.com's composer, read on 9 October 2026 | 74 / 74 | |
+| This package | 74 / 74 | |
 
-Every row is a test in this repository, not a claim. The second row is the uncomfortable one and it is
-[explained below](#provenance).
+Every row is a test in this repository, not a claim, and the x.com row was also run through the composer's own code on x.com.
+The third and fourth rows are X's own library, and where it parts from X's own site is [the section below](#the-library-and-the-site).
+The second row is the uncomfortable one, and it is [explained at the end](#provenance).
 
 ---
 
@@ -84,7 +88,9 @@ Undercounting is the direction that hurts. It tells an author their post fits, a
 
 ## The ones nobody expects
 
-**`README.md` is a link.** `.md` is Moldova's country ending, so `I updated README.md` costs 33, not 19. So is `main.rs`, `app.py` and `archive.zip`. `index.js` is not, because `.js` is not an ending. The list has 1,574 endings and a counter that keeps a short list of its own is wrong about most of them: `whitehouse.gov` is 23, not 14.
+**`main.rs` is a link.** So are `app.py` and `archive.zip`: `.rs`, `.py` and `.zip` are all domain endings, so each costs 23. `index.js` is not, because `.js` is not an ending. x.com knows 1,581 domain endings and a counter that keeps a short list of its own is wrong about most of them: `whitehouse.gov` is 23, not 14.
+
+**`README.md` is not a link, though X's own library says it is.** `.md` is Moldova's country ending, and `twitter-text` charges `I updated README.md` 33. x.com does not: its composer passes over a bare domain ending in `.md`, so the sentence costs 19, and a post that mentions `CLAUDE.md` shows it as plain text. With a protocol, `https://example.md`, it is a link again. More on that [below](#the-library-and-the-site).
 
 **A missing space can manufacture one.** `the end.Next sentence` contains the link `end.Next`, because `.next` is an ending and case does not matter. 36, not 21.
 
@@ -119,6 +125,27 @@ If you split threads, try this on your splitter before assuming you are fine.
 
 ---
 
+## The library and the site
+
+X's developer documentation sends you to `twitter-text` to count a post, and `twitter-text` was last released in March 2020, with an emoji table from 2018. x.com has moved on since, without publishing the changes. Its composer differs from the library in four ways:
+
+| | `twitter-text` 3.1.0 | x.com |
+|---|---|---|
+| `I updated README.md` | 33: `.md` is Moldova's ending | **19**: a bare domain ending in `.md` is a file name, not a link |
+| `example.music` | 13: not an ending it knows | **23**: x.com knows seven more endings, among them `.music`, `.kids`, `.spa` and `.amazon` |
+| `🐦‍⬛` black bird | 5 with the 2018 table, 5 with the last table X published | **2**: x.com's emoji table is Emoji 15.0 |
+| `U+FEFF` then `example.com` | 13: a link may not follow that mark | **25**: the mark costs 2 and the link 23 |
+
+These are not guesses about the site. The first came out of a check before this package was announced: five strings pasted into the composer, which shows a number once 20 or fewer characters are left. Four came back as the library predicts. `README.md` did not.
+
+So the counting code x.com serves to its own composer was read. It is `twitter-text`'s, with four changes: seven domain endings added, `U+FEFF` taken out of the characters that make a post invalid, bare `.md` domains skipped, and the emoji table of `@twemoji/parser` 15.0.0 with one entry moved. `tools/x-live.json` records what was read, on 9 October 2026, with the SHA-256 of every pattern the composer compiles, and `npm run build:core` will not produce a core whose patterns have any other fingerprint.
+
+Then the composer's own counting functions were run in the page on 1,731,072 generated strings, and the digests of their answers recorded. `npm run test:reference` rebuilds those answers from the published packages plus the four changes, gets the same digests, and holds this package to them string by string. With the four changes switched off, the same rebuild gives `twitter-text`'s own answers on every one of those strings and 1.5 million more. So the four are the whole difference, not a sample of it.
+
+You can see the first one in a minute, signed in to X. Start a new post, which you will not send, and paste 246 letters, a space and `I updated README.md`. The library says that is exactly 280 and the counter should read 0. It reads 14.
+
+---
+
 ## The one that breaks implementations
 
 The four-person family emoji is four people joined by three zero-width joiners: seven code points. X charges **2**.
@@ -133,9 +160,9 @@ Count its code points with the weights above and you get **11**: four people at 
 | `❤️` heart + VS16 | 4 | **2** |
 | `1️⃣` keycap | 5 | **2** |
 
-If your counter reports 5 for the mechanic, it fell through to a per-code-point path. That exact number is the one reported in [twitter-text#369](https://github.com/twitter/twitter-text/issues/369), and it is the one vector that `twitter-text` itself fails when installed from npm: version 3.1.0 pins an emoji table from October 2018 (`twemoji-parser` 11.0.2), and the mechanic arrived a year later.
+If your counter reports 5 for the mechanic, it fell through to a per-code-point path. That exact number is the one reported in [twitter-text#369](https://github.com/twitter/twitter-text/issues/369), and it is one of the vectors `twitter-text` itself fails when installed from npm: version 3.1.0 pins an emoji table from October 2018 (`twemoji-parser` 11.0.2), and the mechanic arrived a year later.
 
-One unit is only for sequences X's emoji table knows. Two grinning faces with a joiner between them are not a sequence, so they cost 2 + 1 + 2.
+One unit is only for sequences x.com's emoji table knows. Two grinning faces with a joiner between them are not a sequence, so they cost 2 + 1 + 2. Nor is anything newer than Emoji 15.0: the phoenix, a bird and fire joined, is 5 on x.com today.
 
 ---
 
@@ -158,11 +185,11 @@ import vectors from 'x-weighted-length/vectors' with { type: 'json' };
 }
 ```
 
-Seventy-one cases across eight categories: `basic`, `heavy`, `emoji`, `url`, `not-a-url`, `normalisation`, `boundary`, `structural`. Language-agnostic: it is a JSON file, so a Python, Go, Rust or Swift implementation can consume it as easily as a JavaScript one.
+Seventy-four cases across eight categories: `basic`, `heavy`, `emoji`, `url`, `not-a-url`, `normalisation`, `boundary`, `structural`. Language-agnostic: it is a JSON file, so a Python, Go, Rust or Swift implementation can consume it as easily as a JavaScript one.
 
-**Every expected value is written as arithmetic, in the `why` field, derived from the published rules.** None of them is a snapshot of what this library returns. `vectors/build.js` checks the two against each other and **refuses to write the file** when they disagree, with a message saying that either the implementation or the stated reasoning is wrong and that both are worth stopping for.
+**Every expected value is written as arithmetic, in the `why` field, derived from the rules x.com applies.** None of them is a snapshot of what this library returns. `vectors/build.js` checks the two against each other and **refuses to write the file** when they disagree, with a message saying that either the implementation or the stated reasoning is wrong and that both are worth stopping for.
 
-**And X's own library has to agree with every one.** Arithmetic that reads well can still be about a rule that does not exist, so `npm run test:reference` runs `twitter-text` over the same file and fails if it disagrees with a single vector.
+**And x.com has to agree with every one.** Arithmetic that reads well can still be about a rule that does not exist, so `npm run test:reference` runs x.com's rules, rebuilt and checked against the site, over the same file and fails if they disagree with a single vector. It also pins exactly which vectors X's published library fails, and why.
 
 The `not-a-url` category is the half that is usually missing. Everybody eventually charges 23 for `example.com`. Far fewer keep charging 1 per character for `e.g.`, `index.js`, `2.78.0`, `wait...what` and `jane@example.com`, and a spurious 23 in the middle of a sentence sends an author rewriting copy that already fitted.
 
@@ -200,15 +227,15 @@ const report = check(myCounter);
 if (!report.ok) { console.error(format(report)); process.exit(1); }
 ```
 
-### Why 35 out of 71 is the whole argument
+### Why 36 out of 74 is the whole argument
 
 A plain code-point counter, `[...text].length`, which is what a wrong counter usually *is*, scores this:
 
 ```
-structural 4/5   basic 7/7   heavy 0/4   emoji 4/11
-url 0/20   not-a-url 14/14   normalisation 1/2   boundary 5/8
+structural 4/5   basic 7/7   heavy 0/4   emoji 4/12
+url 0/21   not-a-url 15/15   normalisation 1/2   boundary 5/8
 
-FAIL  36 of 71 vectors
+FAIL  38 of 74 vectors
 ```
 
 Read the shape rather than the total. It passes **every** plain-text case, and it never produces a false positive on a string that merely looks like a link. It fails **every** link vector and **every** CJK one.
@@ -226,7 +253,7 @@ FAIL  url-bare-domain  [url]
                 and tells the author a post fits that the API will reject.
 ```
 
-A counter that **throws** is recorded as a failure with its message rather than crashing the run. Real implementations throw on lone surrogates and on empty input, and losing the other 70 results to one exception is the least useful moment to give up.
+A counter that **throws** is recorded as a failure with its message rather than crashing the run. Real implementations throw on lone surrogates and on empty input, and losing the other 73 results to one exception is the least useful moment to give up.
 
 When two counters disagree and you cannot see why, `explain` lists the pieces the count is made of. The first row that differs from yours is the rule one of you has wrong:
 
@@ -248,29 +275,28 @@ check(myCounter, { vectors });
 
 ## How this was checked
 
-A counter whose author also wrote its tests shares its author's blind spots, and this one proved it (see [Provenance](#provenance)). So nothing here rests on this repository's own opinion of itself.
+A counter whose author also wrote its tests shares its author's blind spots, and this one proved it twice (see [Provenance](#provenance)). So nothing here rests on this repository's own opinion of itself.
 
-**It is X's own code, not an imitation of it.** The link patterns in `src/core.js` have the same source text as `twitter-text` 3.1.0's, character for character, including its list of 1,574 domain endings, and the emoji pattern is `twemoji-parser` 14.0.0's. `tools/build-core.mjs` lifts both out of the published packages; nobody retyped them.
+**It is x.com's own patterns, not an imitation of them.** The link patterns in `src/core.js` have the same source text as the ones x.com's composer compiles, character for character, including its list of 1,581 domain endings, and so does the emoji pattern. `tools/build-core.mjs` lifts them out of `twitter-text` 3.1.0 and `@twemoji/parser` 15.0.0, makes x.com's edits, and refuses to write the core unless every pattern has the SHA-256 recorded on x.com. Nobody retyped them.
 
-**It passes X's own test cases.** `npm test` runs the 1,706 cases in `twitter-text`'s conformance suite that concern weighted length and link extraction, one per domain ending included. It needs nothing installed.
+**It passes X's own test cases.** `npm test` runs the 1,706 cases in `twitter-text`'s conformance suite that concern weighted length and link extraction, one per domain ending included. None of them touches the four places x.com differs, so all of them still hold. It needs nothing installed.
 
-**It agrees with X's own library on input nobody chose.** `npm install && npm run test:reference` generates a million and a half strings, built from the fragments that land on every rule, and compares this package with `twitter-text` on each: the same count, and the same links at the same positions. Zero differences, or the run fails.
+**It agrees with x.com on input nobody chose.** `npm install && npm run test:reference` regenerates the 1,731,072 strings x.com's composer was asked about and gets x.com's answers for every one: the same count, and the same links at the same positions. It does the same on a million and a half more strings built from the fragments that land on every rule. Zero differences, or the run fails.
 
-"X's own library" needs one sentence of care. `twitter-text` from npm still pins the emoji table of October 2018, which is why it fails the mechanic. The comparison uses `twitter-text`'s algorithm with the last table X published, `twemoji-parser` 14.0.0 from March 2022, and the same run checks that `twitter-text` as installed fails that one vector and no other.
+**And it differs from X's published library in exactly four places.** The same run switches x.com's four changes off and gets `twitter-text`'s own answers, with the last emoji table X published, on all of those strings. That is what makes the list of differences above complete rather than illustrative.
 
 ---
 
 ## What this is not
 
-**Not official.** Not published by, endorsed by, or affiliated with X or Twitter. It is a port of code X published under open licences, and the vectors are one reading of the rules that code implements.
+**Not official.** Not published by, endorsed by, or affiliated with X or Twitter. It is a port of code X published under open licences, with the changes x.com has made to it since, and the vectors are one reading of the rules that code implements.
 
 **Not the first conformance suite, and you should know that before you cite it.** X publishes [`twitter-text`](https://github.com/twitter/twitter-text) under Apache 2.0 **with its own conformance tests**, in `conformance/validate.yml`. Anybody telling you nobody else publishes vectors is wrong, and this package runs theirs. What is different here is narrow and checkable: these are CORS-fetchable JSON a browser suite can pull at runtime rather than a YAML file you vendor with a parser; every vector carries the arithmetic for its expected value, so a failure is a diagnosis rather than a mismatch; they cover what follows a link and what is not one, which the weighted-length cases in theirs do not; and there is a runner you can point at your own code. If you want the canonical suite, use theirs. This one is not trying to replace it.
 
-**Not newer than what X published.** The list of domain endings is the one in `twitter-text` (2021). The emoji table is `twemoji-parser` 14.0.0 (2022), the last one X released. X's own emoji set went one version further without a published parser: Twemoji 15.0, in June 2023, [by Emojipedia's account](https://blog.emojipedia.org/a-timeline-of-twemoji-world-emoji-day-2025/). That version added eleven sequences, the black bird and the ten skin-toned pushing hands, which X may charge 2 for and this package charges by the piece. Sequences added to Unicode since then are also charged by the piece, as X's published library does. Every one of those errors runs toward "too long", never toward a rejected post.
+**Not timeless.** The rules are x.com's as read on 9 October 2026. X has changed its composer since `twitter-text` 3.1.0 without publishing the changes, in at least the four ways above, and it can do so again. Emoji newer than 15.0, like the phoenix, are charged by the piece because x.com charges them that way today; when x.com learns them, this will be wrong until someone notices. `tools/x-live.json` records exactly what was read, so a change can be found rather than argued about, and the next section is how to find one.
 
-**Not tidier than X.** Two places in X's emoji table disagree with Unicode, and they are kept: `♾️` with its variation selector costs 4, and the fully qualified `👁️‍🗨️` costs 5. The claim is what X's code charges, not what the standard says it should.
+**Not tidier than X.** Two places in x.com's emoji table disagree with Unicode, and they are kept: `♾️` with its variation selector costs 4, and the fully qualified `👁️‍🗨️` costs 5. The claim is what X's code charges, not what the standard says it should.
 
-**Not a promise about the future.** Limits and rules change, and when they do this will be wrong until someone notices. That is what the next section is for.
 
 ---
 
@@ -278,7 +304,7 @@ A counter whose author also wrote its tests shares its author's blind spots, and
 
 Please do. The failure mode of a reference implementation is being trusted after it stops being right.
 
-The authority is the API. Post a text this library says is exactly 280 and see whether it is accepted; post one it says is 281 and see whether you get the error. If those two disagree with this, this is wrong.
+The authority is X. The quickest check is the composer: paste a text this library says is exactly 280 into a new post, without sending it, and the counter should read 0; at 281 it should read -1 and the Post button should be disabled. Or post it, and see whether it is accepted. If X disagrees with this, this is wrong.
 
 For a specific disagreement, `findLinks` usually settles it in one step. Most "your count is wrong" reports are really "we disagree about what is a link", and that is a two-second conversation once both sides can see the substrings:
 
@@ -293,7 +319,8 @@ Open an issue with the input, what you expected, what you got, and where the exp
 ## Sources
 
 - [twitter/twitter-text](https://github.com/twitter/twitter-text): `config/v3.json` for the weights, the flat 23 and the emoji rule (`scale: 100`, `defaultWeight: 200`, `transformedURLLength: 23`, `emojiParsingEnabled: true`), the link patterns and the list of domain endings, and the conformance suite
-- [twitter/twemoji-parser](https://github.com/twitter/twemoji-parser): the emoji pattern
+- [twitter/twemoji-parser](https://github.com/twitter/twemoji-parser), and its continuation [jdecked/twemoji-parser](https://github.com/jdecked/twemoji-parser) (`@twemoji/parser`): the emoji pattern
+- x.com's composer, read on 9 October 2026: the four differences, the fingerprints in `tools/x-live.json`, and the answers the reference suite is held to
 - [Counting characters](https://docs.x.com/resources/fundamentals/counting-characters) in X's developer documentation, which points at `twitter-text` as the way to count
 - [twitter-text#369](https://github.com/twitter/twitter-text/issues/369): where the mechanic-emoji `5` comes from
 - [tweepy#1538](https://github.com/tweepy/tweepy/issues/1538): an open request for exactly this calculation
@@ -306,7 +333,9 @@ This began as four separate copies of a counter inside one product: a server mod
 
 That first version was wrong, and its own 49 vectors could not say so. It matched a link as a protocol and then everything up to the next space, and bare domains on a list of 49 endings. All four copies agreed with each other and with every vector, because the same person had written all of them. Run against `twitter-text`, it took a sentence's full stop into the link before it, had never heard of `.gov`, and charged an email address 23 for its domain. Four implementations agreeing with each other is evidence of consistency and no evidence of correctness.
 
-So the counter was thrown away and replaced by a port of X's own patterns, and 22 vectors were added for what it had got wrong. The old counter is kept in the test suite in miniature, where it fails 15 of the 71.
+So the counter was thrown away and replaced by a port of X's own patterns, and 22 vectors were added for what it had got wrong. The old counter is kept in the test suite in miniature, where it fails 15 of the 74.
+
+The port was wrong too, and it was caught before the package was announced. It agreed with `twitter-text` on a million and a half strings, and a five-string check in x.com's composer found that `README.md` is not a link there. Reading the code x.com runs turned up three more differences. The `README.md` vector was turned around, and three were added. The suite had been checking the package against X's library, which is what X tells developers to use, and the library is not what X runs. The old counter, for what it is worth, said `README.md` was 19 all along: it had never heard of `.md`.
 
 Two more bugs were found while writing this package, by property tests rather than by examples: the truncation bound, and the link created by cutting. Neither was in the original implementations' test suites, and one of them is probably in yours.
 
@@ -314,4 +343,4 @@ Built while working on [PostSiete](https://postsiete.com).
 
 ## Licence
 
-MIT for this package's own code. The link patterns and the list of domain endings are from `twitter-text` (Apache-2.0) and the emoji pattern is `twemoji-parser`'s (MIT), both copyright Twitter, Inc.; `NOTICE` says exactly what was taken and what was changed, and `LICENSES/` holds both licence texts. Take the vectors, ignore the rest.
+MIT for this package's own code. The link patterns and the list of domain endings are from `twitter-text` (Apache-2.0) and the emoji pattern is `@twemoji/parser`'s (MIT), both copyright Twitter, Inc.; `NOTICE` says exactly what was taken and what was changed, and `LICENSES/` holds both licence texts. Take the vectors, ignore the rest.

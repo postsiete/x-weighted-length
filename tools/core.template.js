@@ -6,15 +6,34 @@
  * studio, the free tools and the Lens extension. A test in each place fails
  * when a copy differs, so never edit a copy: change the template and rebuild.
  *
- * Nothing here is a guess. It is a port of X's own open-source reference:
+ * Nothing here is a guess. It is what x.com's composer runs, read from the
+ * code x.com served on 9 October 2026: X's own open-source reference, plus
+ * what the live site does differently.
  *
  *   twitter-text 3.1.0 (Apache-2.0, Copyright Twitter, Inc.)
- *     the weights (config v3), the link pattern, its list of 1,574 domain
- *     endings, and the checks a candidate link must pass. The link patterns
- *     below compile to the same source text as the reference's, character for
- *     character, and a test compares them.
- *   twemoji-parser 14.0.0 (MIT, Copyright 2018 Twitter, Inc.)
- *     the emoji pattern, verbatim: the last one X published.
+ *     the weights (config v3), the link pattern, the list of domain endings
+ *     and the checks a candidate link must pass.
+ *   @twemoji/parser 15.0.0 (MIT, Copyright 2018 Twitter, Inc.)
+ *     the emoji pattern.
+ *
+ * What x.com does that twitter-text 3.1.0 and the last emoji table X
+ * published do not, which is the whole of the difference:
+ *   1. It knows 1,581 domain endings, seven more than twitter-text: amazon,
+ *      kids, music, spa, and three written outside ASCII.
+ *   2. U+FEFF is not an invalid character, so it may stand before a link and
+ *      inside a domain.
+ *   3. A bare domain ending in .md is a file name, not a link: README.md
+ *      costs 9. With a protocol in front it is still a link.
+ *   4. The emoji table is @twemoji/parser 15.0.0's, with U+1FAF0 moved into
+ *      the group that takes only a skin tone.
+ * The patterns below compile to the same source text as the composer's,
+ * character for character: the build checks each against a fingerprint taken
+ * on x.com (tools/x-live.json) and refuses to write this block if one differs.
+ *
+ * One correction to this port rather than a difference in x.com: punycode
+ * measures U+0000-U+001F and U+007F in a domain as ASCII, as x.com's punycode
+ * and Node's built-in one do. The first version of this port encoded them, as
+ * the npm punycode that twitter-text declares does.
  *
  * The algorithm, in the reference's own order:
  *   1. Normalise to NFC.
@@ -38,12 +57,20 @@
  *
  * What was changed from twitter-text: its link patterns are assembled here
  * from named parts in one place, with characters outside ASCII written as
- * escapes (the assembled patterns have the same source text); the link pattern
- * is tried one position at a time behind a check that skips positions where it
- * cannot match; and the code around the patterns is rewritten without the
- * library's helper modules, with Punycode implemented from RFC 3492.
+ * escapes; seven domain endings are added and U+FEFF is taken out of the
+ * invalid characters, as x.com has them (the assembled patterns have the same
+ * source text as x.com's); a bare domain ending in .md is skipped, as x.com
+ * skips it; the link pattern is tried one position at a time behind a check
+ * that skips positions where it cannot match; and the code around the
+ * patterns is rewritten without the library's helper modules, with Punycode
+ * implemented from RFC 3492 and measuring control characters as x.com does.
  *
- * twemoji-parser. Copyright (c) 2018 Twitter, Inc. Permission is hereby
+ * What was changed from @twemoji/parser: U+1FAF0 is moved from one group of
+ * its pattern to another, as x.com has it, and characters outside ASCII are
+ * written as escapes.
+ *
+ * @twemoji/parser, and twemoji-parser before it.
+ * Copyright (c) 2018 Twitter, Inc. Permission is hereby
  * granted, free of charge, to any person obtaining a copy of this software and
  * associated documentation files (the "Software"), to deal in the Software
  * without restriction, including without limitation the rights to use, copy,
@@ -75,14 +102,15 @@ const XCount = (() => {
    * THE LINK PATTERN, PIECE BY PIECE.
    *
    * Every constant below is the `.source` of the regular expression of the same
-   * name in twitter-text 3.1.0, including two things that look like mistakes
-   * and are kept because X ships them: stray slashes inside DOMAIN_CHARS (its
-   * build concatenated regex literals with their delimiters), and an unbracketed
+   * name in twitter-text 3.1.0, with the one change x.com made to them:
+   * INVALID_CHARS has lost U+FEFF. Two things that look like mistakes are kept
+   * because X ships them: stray slashes inside DOMAIN_CHARS (its build
+   * concatenated regex literals with their delimiters), and an unbracketed
    * alternation in PATH_END. Tidying either would be a different rule from X's.
    */
   const LATIN_ACCENTS = String.raw`\xC0-\xD6\xD8-\xF6\xF8-\xFF\u0100-\u024F\u0253\u0254\u0256\u0257\u0259\u025B\u0263\u0268\u026F\u0272\u0289\u028B\u02BB\u0300-\u036F\u1E00-\u1EFF`;
   const DIRECTIONAL = String.raw`\u202A-\u202E\u061C\u200E\u200F\u2066\u2067\u2068\u2069`;
-  const INVALID_CHARS = String.raw`\uFFFE\uFEFF\uFFFF`;
+  const INVALID_CHARS = String.raw`\uFFFE\uFFFF`; // x.com: U+FEFF is no longer one of them
   const PUNCT = String.raw`\!'#%&'\(\)*\+,\\\-\.\/:;<=>\?@\[\]\^_{|}~\$`;
   const SPACES = String.raw`\x09-\x0D\x20\x85\xA0\u1680\u180E\u2000-\u200A\u2028\u2029\u202F\u205F\u3000`;
 
@@ -95,8 +123,9 @@ const XCount = (() => {
   const PUNYCODE = String.raw`(?:xn--[\-0-9a-z]+)`;
 
   /*
-   * The domain endings X recognises: twitter-text's list, 1,259 generic and 315
-   * country endings. An ending counts only when the next character is not a
+   * The domain endings x.com recognises: twitter-text's list and the seven
+   * x.com added, 1,265 generic and 316 country endings, in the composer's
+   * order. An ending counts only when the next character is not a
    * letter, a digit, @, + or -, which is why `example.com` is a link and
    * `example.coma` is not. Non-ASCII endings are written as escapes so this
    * block stays plain ASCII in every file that carries it.
@@ -134,11 +163,16 @@ const XCount = (() => {
   const ASCII_DOMAIN_SOURCE = String.raw`(?:(?:[\-a-z0-9` + LATIN_ACCENTS + String.raw`]+)\.)+(?:` + GTLD + '|' + CCTLD + '|' + PUNYCODE + ')';
   const TCO_SOURCE = String.raw`^https?:\/\/t\.co\/([a-z0-9]+)(?:\?` + QUERY_CHARS + '*' + QUERY_END + ')?';
   const BAD_BEFORE_BARE_DOMAIN = /[-_.\/]$/;
+  // x.com, and not twitter-text: a bare domain ending in .md is a file name
+  // (README.md, CLAUDE.md), so it is not a link. https://example.md still is.
+  const BARE_MARKDOWN = /\.md$/i;
 
   /*
-   * The emoji X counts as one unit: twemoji-parser 14.0.0's pattern, verbatim
-   * (MIT, Copyright 2018 Twitter, Inc.). A sequence this pattern does not know
-   * is charged piece by piece, which is what X's own library does with it.
+   * The emoji x.com counts as one unit: @twemoji/parser 15.0.0's pattern (MIT,
+   * Copyright 2018 Twitter, Inc.) with U+1FAF0 in the skin-tone group only, as
+   * x.com has it. A sequence this pattern does not know is charged piece by
+   * piece, which is what x.com does with it: the phoenix of Emoji 15.1, bird,
+   * joiner and fire, costs 2 + 1 + 2 = 5.
    */
   const EMOJI_SOURCE =
 /*@EMOJI@*/;
@@ -165,6 +199,8 @@ const XCount = (() => {
         protocol: /https?:\/\//iy,
         inDomain: new RegExp('^' + DOMAIN_CHARS + '$', 'i'),
         beforeLink: new RegExp('^' + PRECEDING.replace('|^)', ')') + '$', 'i'),
+        bareMarkdown: BARE_MARKDOWN,
+        nonAscii: NON_ASCII,
       };
     }
     return rx;
@@ -215,11 +251,20 @@ const XCount = (() => {
     return out;
   }
 
+  /*
+   * What punycode.js counts as needing encoding. x.com bundles a punycode that
+   * treats U+0000-U+001F and U+007F as ASCII, as punycode.js 2.3 and Node's
+   * built-in punycode do. The npm punycode twitter-text 3.1.0 declares (1.4.1)
+   * encodes them, and the first version of this port followed it, which made a
+   * domain label with a control character in it longer than x.com measures it.
+   */
+  const NON_ASCII = /[^\0-\x7F]/;
+
   /** Length of a label as DNS would carry it. Mirrors punycode.js `toASCII`, separators included. */
   function asciiLength(label) {
     let total = -1;
     for (const part of label.split(/[\x2E\u3002\uFF0E\uFF61]/)) {
-      total += 1 + (/[^\x20-\x7E]/.test(part) ? 4 + punycode(part).length : part.length);
+      total += 1 + (NON_ASCII.test(part) ? 4 + punycode(part).length : part.length);
     }
     return total;
   }
@@ -263,7 +308,8 @@ const XCount = (() => {
 
   /*
    * THE LINKS IN A TEXT, AS X FINDS THEM. A line-for-line port of
-   * `extractUrlsWithIndices`, including the part that surprises people: a
+   * `extractUrlsWithIndices` as x.com runs it, which is twitter-text's with the
+   * .md exception added. It includes the part that surprises people: a
    * candidate that fails a check is still consumed, so nothing inside it is
    * looked at again.
    *
@@ -353,6 +399,9 @@ const XCount = (() => {
         R.asciiDomain.lastIndex = 0;
         let a;
         while ((a = R.asciiDomain.exec(domain))) {
+          // x.com, not twitter-text: a bare domain ending in .md is a file name.
+          // It is passed over without moving asciiEnd, exactly as x.com's loop does.
+          if (BARE_MARKDOWN.test(a[0])) continue;
           const asciiStart = domain.indexOf(a[0], asciiEnd);
           asciiEnd = asciiStart + a[0].length;
           lastLength = a[0].length;

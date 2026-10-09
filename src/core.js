@@ -6,15 +6,34 @@
  * studio, the free tools and the Lens extension. A test in each place fails
  * when a copy differs, so never edit a copy: change the template and rebuild.
  *
- * Nothing here is a guess. It is a port of X's own open-source reference:
+ * Nothing here is a guess. It is what x.com's composer runs, read from the
+ * code x.com served on 9 October 2026: X's own open-source reference, plus
+ * what the live site does differently.
  *
  *   twitter-text 3.1.0 (Apache-2.0, Copyright Twitter, Inc.)
- *     the weights (config v3), the link pattern, its list of 1,574 domain
- *     endings, and the checks a candidate link must pass. The link patterns
- *     below compile to the same source text as the reference's, character for
- *     character, and a test compares them.
- *   twemoji-parser 14.0.0 (MIT, Copyright 2018 Twitter, Inc.)
- *     the emoji pattern, verbatim: the last one X published.
+ *     the weights (config v3), the link pattern, the list of domain endings
+ *     and the checks a candidate link must pass.
+ *   @twemoji/parser 15.0.0 (MIT, Copyright 2018 Twitter, Inc.)
+ *     the emoji pattern.
+ *
+ * What x.com does that twitter-text 3.1.0 and the last emoji table X
+ * published do not, which is the whole of the difference:
+ *   1. It knows 1,581 domain endings, seven more than twitter-text: amazon,
+ *      kids, music, spa, and three written outside ASCII.
+ *   2. U+FEFF is not an invalid character, so it may stand before a link and
+ *      inside a domain.
+ *   3. A bare domain ending in .md is a file name, not a link: README.md
+ *      costs 9. With a protocol in front it is still a link.
+ *   4. The emoji table is @twemoji/parser 15.0.0's, with U+1FAF0 moved into
+ *      the group that takes only a skin tone.
+ * The patterns below compile to the same source text as the composer's,
+ * character for character: the build checks each against a fingerprint taken
+ * on x.com (tools/x-live.json) and refuses to write this block if one differs.
+ *
+ * One correction to this port rather than a difference in x.com: punycode
+ * measures U+0000-U+001F and U+007F in a domain as ASCII, as x.com's punycode
+ * and Node's built-in one do. The first version of this port encoded them, as
+ * the npm punycode that twitter-text declares does.
  *
  * The algorithm, in the reference's own order:
  *   1. Normalise to NFC.
@@ -38,12 +57,20 @@
  *
  * What was changed from twitter-text: its link patterns are assembled here
  * from named parts in one place, with characters outside ASCII written as
- * escapes (the assembled patterns have the same source text); the link pattern
- * is tried one position at a time behind a check that skips positions where it
- * cannot match; and the code around the patterns is rewritten without the
- * library's helper modules, with Punycode implemented from RFC 3492.
+ * escapes; seven domain endings are added and U+FEFF is taken out of the
+ * invalid characters, as x.com has them (the assembled patterns have the same
+ * source text as x.com's); a bare domain ending in .md is skipped, as x.com
+ * skips it; the link pattern is tried one position at a time behind a check
+ * that skips positions where it cannot match; and the code around the
+ * patterns is rewritten without the library's helper modules, with Punycode
+ * implemented from RFC 3492 and measuring control characters as x.com does.
  *
- * twemoji-parser. Copyright (c) 2018 Twitter, Inc. Permission is hereby
+ * What was changed from @twemoji/parser: U+1FAF0 is moved from one group of
+ * its pattern to another, as x.com has it, and characters outside ASCII are
+ * written as escapes.
+ *
+ * @twemoji/parser, and twemoji-parser before it.
+ * Copyright (c) 2018 Twitter, Inc. Permission is hereby
  * granted, free of charge, to any person obtaining a copy of this software and
  * associated documentation files (the "Software"), to deal in the Software
  * without restriction, including without limitation the rights to use, copy,
@@ -75,14 +102,15 @@ const XCount = (() => {
    * THE LINK PATTERN, PIECE BY PIECE.
    *
    * Every constant below is the `.source` of the regular expression of the same
-   * name in twitter-text 3.1.0, including two things that look like mistakes
-   * and are kept because X ships them: stray slashes inside DOMAIN_CHARS (its
-   * build concatenated regex literals with their delimiters), and an unbracketed
+   * name in twitter-text 3.1.0, with the one change x.com made to them:
+   * INVALID_CHARS has lost U+FEFF. Two things that look like mistakes are kept
+   * because X ships them: stray slashes inside DOMAIN_CHARS (its build
+   * concatenated regex literals with their delimiters), and an unbracketed
    * alternation in PATH_END. Tidying either would be a different rule from X's.
    */
   const LATIN_ACCENTS = String.raw`\xC0-\xD6\xD8-\xF6\xF8-\xFF\u0100-\u024F\u0253\u0254\u0256\u0257\u0259\u025B\u0263\u0268\u026F\u0272\u0289\u028B\u02BB\u0300-\u036F\u1E00-\u1EFF`;
   const DIRECTIONAL = String.raw`\u202A-\u202E\u061C\u200E\u200F\u2066\u2067\u2068\u2069`;
-  const INVALID_CHARS = String.raw`\uFFFE\uFEFF\uFFFF`;
+  const INVALID_CHARS = String.raw`\uFFFE\uFFFF`; // x.com: U+FEFF is no longer one of them
   const PUNCT = String.raw`\!'#%&'\(\)*\+,\\\-\.\/:;<=>\?@\[\]\^_{|}~\$`;
   const SPACES = String.raw`\x09-\x0D\x20\x85\xA0\u1680\u180E\u2000-\u200A\u2028\u2029\u202F\u205F\u3000`;
 
@@ -95,8 +123,9 @@ const XCount = (() => {
   const PUNYCODE = String.raw`(?:xn--[\-0-9a-z]+)`;
 
   /*
-   * The domain endings X recognises: twitter-text's list, 1,259 generic and 315
-   * country endings. An ending counts only when the next character is not a
+   * The domain endings x.com recognises: twitter-text's list and the seven
+   * x.com added, 1,265 generic and 316 country endings, in the composer's
+   * order. An ending counts only when the next character is not a
    * letter, a digit, @, + or -, which is why `example.com` is a link and
    * `example.coma` is not. Non-ASCII endings are written as escapes so this
    * block stays plain ASCII in every file that carries it.
@@ -109,12 +138,12 @@ const XCount = (() => {
     '\u653F\u52A1|\u62DB\u8058|\u624B\u8868|\u624B\u673A|\u6211\u7231\u4F60|\u6148\u5584|\u5FAE\u535A|\u5E7F\u4E1C|' +
     '\u5DE5\u884C|\u5BB6\u96FB|\u5A31\u4E50|\u5929\u4E3B\u6559|\u5927\u62FF|\u5927\u4F17\u6C7D\u8F66|\u5728\u7EBF|' +
     '\u5609\u91CC\u5927\u9152\u5E97|\u5609\u91CC|\u5546\u6807|\u5546\u5E97|\u5546\u57CE|\u516C\u76CA|\u516C\u53F8|' +
-    '\u516B\u5366|\u5065\u5EB7|\u4FE1\u606F|\u4F5B\u5C71|\u4F01\u4E1A|\u4E2D\u6587\u7F51|\u4E2D\u4FE1|\u4E16\u754C|' +
-    '\u30DD\u30A4\u30F3\u30C8|\u30D5\u30A1\u30C3\u30B7\u30E7\u30F3|\u30BB\u30FC\u30EB|\u30B9\u30C8\u30A2|' +
-    '\u30B3\u30E0|\u30B0\u30FC\u30B0\u30EB|\u30AF\u30E9\u30A6\u30C9|\u307F\u3093\u306A|\u0E04\u0E2D\u0E21|' +
-    '\u0938\u0902\u0917\u0920\u0928|\u0928\u0947\u091F|\u0915\u0949\u092E|\u0647\u0645\u0631\u0627\u0647|' +
-    '\u0645\u0648\u0642\u0639|\u0645\u0648\u0628\u0627\u064A\u0644\u064A|\u0643\u0648\u0645|' +
-    '\u0643\u0627\u062B\u0648\u0644\u064A\u0643|\u0639\u0631\u0628|\u0634\u0628\u0643\u0629|' +
+    '\u516B\u5366|\u5065\u5EB7|\u4FE1\u606F|\u4F5B\u5C71|\u4F01\u4E1A|\u4E9A\u9A6C\u900A|\u4E2D\u6587\u7F51|' +
+    '\u4E2D\u4FE1|\u4E16\u754C|\u30DD\u30A4\u30F3\u30C8|\u30D5\u30A1\u30C3\u30B7\u30E7\u30F3|\u30BB\u30FC\u30EB|' +
+    '\u30B9\u30C8\u30A2|\u30B3\u30E0|\u30B0\u30FC\u30B0\u30EB|\u30AF\u30E9\u30A6\u30C9|\u30A2\u30DE\u30BE\u30F3|' +
+    '\u307F\u3093\u306A|\u0E04\u0E2D\u0E21|\u0938\u0902\u0917\u0920\u0928|\u0928\u0947\u091F|\u0915\u0949\u092E|' +
+    '\u0647\u0645\u0631\u0627\u0647|\u0645\u0648\u0642\u0639|\u0645\u0648\u0628\u0627\u064A\u0644\u064A|' +
+    '\u0643\u0648\u0645|\u0643\u0627\u062B\u0648\u0644\u064A\u0643|\u0639\u0631\u0628|\u0634\u0628\u0643\u0629|' +
     '\u0628\u064A\u062A\u0643|\u0628\u0627\u0632\u0627\u0631|\u0627\u0644\u0639\u0644\u064A\u0627\u0646|' +
     '\u0627\u0631\u0627\u0645\u0643\u0648|\u0627\u062A\u0635\u0627\u0644\u0627\u062A|' +
     '\u0627\u0628\u0648\u0638\u0628\u064A|\u05E7\u05D5\u05DD|\u0441\u0430\u0439\u0442|\u0440\u0443\u0441|' +
@@ -132,7 +161,7 @@ const XCount = (() => {
     'telefonica|telecity|tel|technology|tech|team|tdk|tci|taxi|tax|tattoo|tatar|tatamotors|target|taobao|talk|' +
     'taipei|tab|systems|symantec|sydney|swiss|swiftcover|swatch|suzuki|surgery|surf|support|supply|supplies|sucks|' +
     'style|study|studio|stream|store|storage|stockholm|stcgroup|stc|statoil|statefarm|statebank|starhub|star|' +
-    'staples|stada|srt|srl|spreadbetting|spot|sport|spiegel|space|soy|sony|song|solutions|solar|sohu|software|' +
+    'staples|stada|srt|srl|spreadbetting|spot|sport|spiegel|space|spa|soy|sony|song|solutions|solar|sohu|software|' +
     'softbank|social|soccer|sncf|smile|smart|sling|skype|sky|skin|ski|site|singles|sina|silk|shriram|showtime|show|' +
     'shouji|shopping|shop|shoes|shiksha|shia|shell|shaw|sharp|shangrila|sfr|sexy|sex|sew|seven|ses|services|sener|' +
     'select|seek|security|secure|seat|search|scot|scor|scjohnson|science|schwarz|schule|school|scholarships|schmidt|' +
@@ -148,51 +177,51 @@ const XCount = (() => {
     'onyourside|online|onl|ong|one|omega|ollo|oldnavy|olayangroup|olayan|okinawa|office|off|observer|obi|nyc|ntt|' +
     'nrw|nra|nowtv|nowruz|now|norton|northwesternmutual|nokia|nissay|nissan|ninja|nikon|nike|nico|nhk|ngo|nfl|nexus|' +
     'nextdirect|next|news|newholland|new|neustar|network|netflix|netbank|net|nec|nba|navy|natura|nationwide|name|' +
-    'nagoya|nadex|nab|mutuelle|mutual|museum|mtr|mtpc|mtn|msd|movistar|movie|mov|motorcycles|moto|moscow|mortgage|' +
-    'mormon|mopar|montblanc|monster|money|monash|mom|moi|moe|moda|mobily|mobile|mobi|mma|mls|mlb|mitsubishi|mit|' +
-    'mint|mini|mil|microsoft|miami|metlife|merckmsd|meo|menu|men|memorial|meme|melbourne|meet|media|med|mckinsey|' +
-    'mcdonalds|mcd|mba|mattel|maserati|marshalls|marriott|markets|marketing|market|map|mango|management|man|makeup|' +
-    'maison|maif|madrid|macys|luxury|luxe|lupin|lundbeck|ltda|ltd|lplfinancial|lpl|love|lotto|lotte|london|lol|loft|' +
-    'locus|locker|loans|loan|llp|llc|lixil|living|live|lipsy|link|linde|lincoln|limo|limited|lilly|like|lighting|' +
-    'lifestyle|lifeinsurance|life|lidl|liaison|lgbt|lexus|lego|legal|lefrak|leclerc|lease|lds|lawyer|law|latrobe|' +
-    'latino|lat|lasalle|lanxess|landrover|land|lancome|lancia|lancaster|lamer|lamborghini|ladbrokes|lacaixa|kyoto|' +
-    'kuokgroup|kred|krd|kpn|kpmg|kosher|komatsu|koeln|kiwi|kitchen|kindle|kinder|kim|kia|kfh|kerryproperties|' +
-    'kerrylogistics|kerryhotels|kddi|kaufen|juniper|juegos|jprs|jpmorgan|joy|jot|joburg|jobs|jnj|jmp|jll|jlc|jio|' +
-    'jewelry|jetzt|jeep|jcp|jcb|java|jaguar|iwc|iveco|itv|itau|istanbul|ist|ismaili|iselect|irish|ipiranga|' +
-    'investments|intuit|international|intel|int|insure|insurance|institute|ink|ing|info|infiniti|industries|inc|' +
-    'immobilien|immo|imdb|imamat|ikano|iinet|ifm|ieee|icu|ice|icbc|ibm|hyundai|hyatt|hughes|htc|hsbc|how|house|' +
-    'hotmail|hotels|hoteles|hot|hosting|host|hospital|horse|honeywell|honda|homesense|homes|homegoods|homedepot|' +
-    'holiday|holdings|hockey|hkt|hiv|hitachi|hisamitsu|hiphop|hgtv|hermes|here|helsinki|help|healthcare|health|' +
-    'hdfcbank|hdfc|hbo|haus|hangout|hamburg|hair|guru|guitars|guide|guge|gucci|guardian|group|grocery|gripe|green|' +
-    'gratis|graphics|grainger|gov|got|gop|google|goog|goodyear|goodhands|goo|golf|goldpoint|gold|godaddy|gmx|gmo|' +
-    'gmbh|gmail|globo|global|gle|glass|glade|giving|gives|gifts|gift|ggee|george|genting|gent|gea|gdn|gbiz|gay|' +
-    'garden|gap|games|game|gallup|gallo|gallery|gal|fyi|futbol|furniture|fund|fun|fujixerox|fujitsu|ftr|frontier|' +
-    'frontdoor|frogans|frl|fresenius|free|fox|foundation|forum|forsale|forex|ford|football|foodnetwork|food|foo|fly|' +
-    'flsmidth|flowers|florist|flir|flights|flickr|fitness|fit|fishing|fish|firmdale|firestone|fire|financial|' +
-    'finance|final|film|fido|fidelity|fiat|ferrero|ferrari|feedback|fedex|fast|fashion|farmers|farm|fans|fan|family|' +
-    'faith|fairwinds|fail|fage|extraspace|express|exposed|expert|exchange|everbank|events|eus|eurovision|etisalat|' +
-    'esurance|estate|esq|erni|ericsson|equipment|epson|epost|enterprises|engineering|engineer|energy|emerck|email|' +
-    'education|edu|edeka|eco|eat|earth|dvr|dvag|durban|dupont|duns|dunlop|duck|dubai|dtv|drive|download|dot|doosan|' +
-    'domains|doha|dog|dodge|doctor|docs|dnp|diy|dish|discover|discount|directory|direct|digital|diet|diamonds|dhl|' +
-    'dev|design|desi|dentist|dental|democrat|delta|deloitte|dell|delivery|degree|deals|dealer|deal|dds|dclk|day|' +
-    'datsun|dating|date|data|dance|dad|dabur|cyou|cymru|cuisinella|csc|cruises|cruise|crs|crown|cricket|creditunion|' +
-    'creditcard|credit|cpa|courses|coupons|coupon|country|corsica|coop|cool|cookingchannel|cooking|contractors|' +
-    'contact|consulting|construction|condos|comsec|computer|compare|company|community|commbank|comcast|com|cologne|' +
-    'college|coffee|codes|coach|clubmed|club|cloud|clothing|clinique|clinic|click|cleaning|claims|cityeats|city|' +
-    'citic|citi|citadel|cisco|circle|cipriani|church|chrysler|chrome|christmas|chloe|chintai|cheap|chat|chase|' +
-    'charity|channel|chanel|cfd|cfa|cern|ceo|center|ceb|cbs|cbre|cbn|cba|catholic|catering|cat|casino|cash|caseih|' +
-    'case|casa|cartier|cars|careers|career|care|cards|caravan|car|capitalone|capital|capetown|canon|cancerresearch|' +
-    'camp|camera|cam|calvinklein|call|cal|cafe|cab|bzh|buzz|buy|business|builders|build|bugatti|budapest|brussels|' +
-    'brother|broker|broadway|bridgestone|bradesco|box|boutique|bot|boston|bostik|bosch|boots|booking|book|boo|bond|' +
-    'bom|bofa|boehringer|boats|bnpparibas|bnl|bmw|bms|blue|bloomberg|blog|blockbuster|blanco|blackfriday|black|biz|' +
-    'bio|bingo|bing|bike|bid|bible|bharti|bet|bestbuy|best|berlin|bentley|beer|beauty|beats|bcn|bcg|bbva|bbt|bbc|' +
-    'bayern|bauhaus|basketball|baseball|bargains|barefoot|barclays|barclaycard|barcelona|bar|bank|band|' +
-    'bananarepublic|banamex|baidu|baby|azure|axa|aws|avianca|autos|auto|author|auspost|audio|audible|audi|auction|' +
-    'attorney|athleta|associates|asia|asda|arte|art|arpa|army|archi|aramco|arab|aquarelle|apple|app|apartments|aol|' +
-    'anz|anquan|android|analytics|amsterdam|amica|amfam|amex|americanfamily|americanexpress|alstom|alsace|ally|' +
-    'allstate|allfinanz|alipay|alibaba|alfaromeo|akdn|airtel|airforce|airbus|aigo|aig|agency|agakhan|africa|afl|' +
-    'afamilycompany|aetna|aero|aeg|adult|ads|adac|actor|active|aco|accountants|accountant|accenture|academy|' +
-    'abudhabi|abogado|able|abc|abbvie|abbott|abb|abarth|aarp|aaa|onion';
+    'nagoya|nadex|nab|mutuelle|mutual|music|museum|mtr|mtpc|mtn|msd|movistar|movie|mov|motorcycles|moto|moscow|' +
+    'mortgage|mormon|mopar|montblanc|monster|money|monash|mom|moi|moe|moda|mobily|mobile|mobi|mma|mls|mlb|' +
+    'mitsubishi|mit|mint|mini|mil|microsoft|miami|metlife|merckmsd|meo|menu|men|memorial|meme|melbourne|meet|media|' +
+    'med|mckinsey|mcdonalds|mcd|mba|mattel|maserati|marshalls|marriott|markets|marketing|market|map|mango|' +
+    'management|man|makeup|maison|maif|madrid|macys|luxury|luxe|lupin|lundbeck|ltda|ltd|lplfinancial|lpl|love|lotto|' +
+    'lotte|london|lol|loft|locus|locker|loans|loan|llp|llc|lixil|living|live|lipsy|link|linde|lincoln|limo|limited|' +
+    'lilly|like|lighting|lifestyle|lifeinsurance|life|lidl|liaison|lgbt|lexus|lego|legal|lefrak|leclerc|lease|lds|' +
+    'lawyer|law|latrobe|latino|lat|lasalle|lanxess|landrover|land|lancome|lancia|lancaster|lamer|lamborghini|' +
+    'ladbrokes|lacaixa|kyoto|kuokgroup|kred|krd|kpn|kpmg|kosher|komatsu|koeln|kiwi|kitchen|kindle|kinder|kim|kids|' +
+    'kia|kfh|kerryproperties|kerrylogistics|kerryhotels|kddi|kaufen|juniper|juegos|jprs|jpmorgan|joy|jot|joburg|' +
+    'jobs|jnj|jmp|jll|jlc|jio|jewelry|jetzt|jeep|jcp|jcb|java|jaguar|iwc|iveco|itv|itau|istanbul|ist|ismaili|' +
+    'iselect|irish|ipiranga|investments|intuit|international|intel|int|insure|insurance|institute|ink|ing|info|' +
+    'infiniti|industries|inc|immobilien|immo|imdb|imamat|ikano|iinet|ifm|ieee|icu|ice|icbc|ibm|hyundai|hyatt|hughes|' +
+    'htc|hsbc|how|house|hotmail|hotels|hoteles|hot|hosting|host|hospital|horse|honeywell|honda|homesense|homes|' +
+    'homegoods|homedepot|holiday|holdings|hockey|hkt|hiv|hitachi|hisamitsu|hiphop|hgtv|hermes|here|helsinki|help|' +
+    'healthcare|health|hdfcbank|hdfc|hbo|haus|hangout|hamburg|hair|guru|guitars|guide|guge|gucci|guardian|group|' +
+    'grocery|gripe|green|gratis|graphics|grainger|gov|got|gop|google|goog|goodyear|goodhands|goo|golf|goldpoint|' +
+    'gold|godaddy|gmx|gmo|gmbh|gmail|globo|global|gle|glass|glade|giving|gives|gifts|gift|ggee|george|genting|gent|' +
+    'gea|gdn|gbiz|gay|garden|gap|games|game|gallup|gallo|gallery|gal|fyi|futbol|furniture|fund|fun|fujixerox|' +
+    'fujitsu|ftr|frontier|frontdoor|frogans|frl|fresenius|free|fox|foundation|forum|forsale|forex|ford|football|' +
+    'foodnetwork|food|foo|fly|flsmidth|flowers|florist|flir|flights|flickr|fitness|fit|fishing|fish|firmdale|' +
+    'firestone|fire|financial|finance|final|film|fido|fidelity|fiat|ferrero|ferrari|feedback|fedex|fast|fashion|' +
+    'farmers|farm|fans|fan|family|faith|fairwinds|fail|fage|extraspace|express|exposed|expert|exchange|everbank|' +
+    'events|eus|eurovision|etisalat|esurance|estate|esq|erni|ericsson|equipment|epson|epost|enterprises|engineering|' +
+    'engineer|energy|emerck|email|education|edu|edeka|eco|eat|earth|dvr|dvag|durban|dupont|duns|dunlop|duck|dubai|' +
+    'dtv|drive|download|dot|doosan|domains|doha|dog|dodge|doctor|docs|dnp|diy|dish|discover|discount|directory|' +
+    'direct|digital|diet|diamonds|dhl|dev|design|desi|dentist|dental|democrat|delta|deloitte|dell|delivery|degree|' +
+    'deals|dealer|deal|dds|dclk|day|datsun|dating|date|data|dance|dad|dabur|cyou|cymru|cuisinella|csc|cruises|' +
+    'cruise|crs|crown|cricket|creditunion|creditcard|credit|cpa|courses|coupons|coupon|country|corsica|coop|cool|' +
+    'cookingchannel|cooking|contractors|contact|consulting|construction|condos|comsec|computer|compare|company|' +
+    'community|commbank|comcast|com|cologne|college|coffee|codes|coach|clubmed|club|cloud|clothing|clinique|clinic|' +
+    'click|cleaning|claims|cityeats|city|citic|citi|citadel|cisco|circle|cipriani|church|chrysler|chrome|christmas|' +
+    'chloe|chintai|cheap|chat|chase|charity|channel|chanel|cfd|cfa|cern|ceo|center|ceb|cbs|cbre|cbn|cba|catholic|' +
+    'catering|cat|casino|cash|caseih|case|casa|cartier|cars|careers|career|care|cards|caravan|car|capitalone|' +
+    'capital|capetown|canon|cancerresearch|camp|camera|cam|calvinklein|call|cal|cafe|cab|bzh|buzz|buy|business|' +
+    'builders|build|bugatti|budapest|brussels|brother|broker|broadway|bridgestone|bradesco|box|boutique|bot|boston|' +
+    'bostik|bosch|boots|booking|book|boo|bond|bom|bofa|boehringer|boats|bnpparibas|bnl|bmw|bms|blue|bloomberg|blog|' +
+    'blockbuster|blanco|blackfriday|black|biz|bio|bingo|bing|bike|bid|bible|bharti|bet|bestbuy|best|berlin|bentley|' +
+    'beer|beauty|beats|bcn|bcg|bbva|bbt|bbc|bayern|bauhaus|basketball|baseball|bargains|barefoot|barclays|' +
+    'barclaycard|barcelona|bar|bank|band|bananarepublic|banamex|baidu|baby|azure|axa|aws|avianca|autos|auto|author|' +
+    'auspost|audio|audible|audi|auction|attorney|athleta|associates|asia|asda|arte|art|arpa|army|archi|aramco|arab|' +
+    'aquarelle|apple|app|apartments|aol|anz|anquan|android|analytics|amsterdam|amica|amfam|amex|americanfamily|' +
+    'americanexpress|amazon|alstom|alsace|ally|allstate|allfinanz|alipay|alibaba|alfaromeo|akdn|airtel|airforce|' +
+    'airbus|aigo|aig|agency|agakhan|africa|afl|afamilycompany|aetna|aero|aeg|adult|ads|adac|actor|active|aco|' +
+    'accountants|accountant|accenture|academy|abudhabi|abogado|able|abc|abbvie|abbott|abb|abarth|aarp|aaa|onion';
   const CCTLDS =
     '\uD55C\uAD6D|\u9999\u6E2F|\u6FB3\u9580|\u65B0\u52A0\u5761|\u53F0\u7063|\u53F0\u6E7E|\u4E2D\u570B|\u4E2D\u56FD|' +
     '\u10D2\u10D4|\u0EA5\u0EB2\u0EA7|\u0E44\u0E17\u0E22|\u0DBD\u0D82\u0D9A\u0DCF|\u0D2D\u0D3E\u0D30\u0D24\u0D02|' +
@@ -208,16 +237,16 @@ const XCount = (() => {
     '\u0628\u06BE\u0627\u0631\u062A|\u0628\u0627\u0631\u062A|\u0627\u06CC\u0631\u0627\u0646|' +
     '\u0627\u0645\u0627\u0631\u0627\u062A|\u0627\u0644\u0645\u063A\u0631\u0628|' +
     '\u0627\u0644\u0633\u0639\u0648\u062F\u064A\u0629|\u0627\u0644\u062C\u0632\u0627\u0626\u0631|' +
-    '\u0627\u0644\u0628\u062D\u0631\u064A\u0646|\u0627\u0644\u0627\u0631\u062F\u0646|\u0570\u0561\u0575|' +
-    '\u049B\u0430\u0437|\u0443\u043A\u0440|\u0441\u0440\u0431|\u0440\u0444|\u043C\u043E\u043D|\u043C\u043A\u0434|' +
-    '\u0435\u044E|\u0431\u0435\u043B|\u0431\u0433|\u03B5\u03C5|\u03B5\u03BB|zw|zm|za|yt|ye|ws|wf|vu|vn|vi|vg|ve|vc|' +
-    'va|uz|uy|us|um|uk|ug|ua|tz|tw|tv|tt|tr|tp|to|tn|tm|tl|tk|tj|th|tg|tf|td|tc|sz|sy|sx|sv|su|st|ss|sr|so|sn|sm|sl|' +
-    'sk|sj|si|sh|sg|se|sd|sc|sb|sa|rw|ru|rs|ro|re|qa|py|pw|pt|ps|pr|pn|pm|pl|pk|ph|pg|pf|pe|pa|om|nz|nu|nr|np|no|nl|' +
-    'ni|ng|nf|ne|nc|na|mz|my|mx|mw|mv|mu|mt|ms|mr|mq|mp|mo|mn|mm|ml|mk|mh|mg|mf|me|md|mc|ma|ly|lv|lu|lt|ls|lr|lk|li|' +
-    'lc|lb|la|kz|ky|kw|kr|kp|kn|km|ki|kh|kg|ke|jp|jo|jm|je|it|is|ir|iq|io|in|im|il|ie|id|hu|ht|hr|hn|hm|hk|gy|gw|gu|' +
-    'gt|gs|gr|gq|gp|gn|gm|gl|gi|gh|gg|gf|ge|gd|gb|ga|fr|fo|fm|fk|fj|fi|eu|et|es|er|eh|eg|ee|ec|dz|do|dm|dk|dj|de|cz|' +
-    'cy|cx|cw|cv|cu|cr|co|cn|cm|cl|ck|ci|ch|cg|cf|cd|cc|ca|bz|by|bw|bv|bt|bs|br|bq|bo|bn|bm|bl|bj|bi|bh|bg|bf|be|bd|' +
-    'bb|ba|az|ax|aw|au|at|as|ar|aq|ao|an|am|al|ai|ag|af|ae|ad|ac';
+    '\u0627\u0644\u0628\u062D\u0631\u064A\u0646|\u0627\u0644\u0627\u0631\u062F\u0646|\u05D9\u05E9\u05E8\u05D0\u05DC|' +
+    '\u0570\u0561\u0575|\u049B\u0430\u0437|\u0443\u043A\u0440|\u0441\u0440\u0431|\u0440\u0444|\u043C\u043E\u043D|' +
+    '\u043C\u043A\u0434|\u0435\u044E|\u0431\u0435\u043B|\u0431\u0433|\u03B5\u03C5|\u03B5\u03BB|zw|zm|za|yt|ye|ws|wf|' +
+    'vu|vn|vi|vg|ve|vc|va|uz|uy|us|um|uk|ug|ua|tz|tw|tv|tt|tr|tp|to|tn|tm|tl|tk|tj|th|tg|tf|td|tc|sz|sy|sx|sv|su|st|' +
+    'ss|sr|so|sn|sm|sl|sk|sj|si|sh|sg|se|sd|sc|sb|sa|rw|ru|rs|ro|re|qa|py|pw|pt|ps|pr|pn|pm|pl|pk|ph|pg|pf|pe|pa|om|' +
+    'nz|nu|nr|np|no|nl|ni|ng|nf|ne|nc|na|mz|my|mx|mw|mv|mu|mt|ms|mr|mq|mp|mo|mn|mm|ml|mk|mh|mg|mf|me|md|mc|ma|ly|lv|' +
+    'lu|lt|ls|lr|lk|li|lc|lb|la|kz|ky|kw|kr|kp|kn|km|ki|kh|kg|ke|jp|jo|jm|je|it|is|ir|iq|io|in|im|il|ie|id|hu|ht|hr|' +
+    'hn|hm|hk|gy|gw|gu|gt|gs|gr|gq|gp|gn|gm|gl|gi|gh|gg|gf|ge|gd|gb|ga|fr|fo|fm|fk|fj|fi|eu|et|es|er|eh|eg|ee|ec|dz|' +
+    'do|dm|dk|dj|de|cz|cy|cx|cw|cv|cu|cr|co|cn|cm|cl|ck|ci|ch|cg|cf|cd|cc|ca|bz|by|bw|bv|bt|bs|br|bq|bo|bn|bm|bl|bj|' +
+    'bi|bh|bg|bf|be|bd|bb|ba|az|ax|aw|au|at|as|ar|aq|ao|an|am|al|ai|ag|af|ae|ad|ac';
   const TLD_END = '(?=[^0-9a-zA-Z@+-]|$)';
   const GTLD = '(?:(?:' + GTLDS + ')' + TLD_END + ')';
   const CCTLD = '(?:(?:' + CCTLDS + ')' + TLD_END + ')';
@@ -247,11 +276,16 @@ const XCount = (() => {
   const ASCII_DOMAIN_SOURCE = String.raw`(?:(?:[\-a-z0-9` + LATIN_ACCENTS + String.raw`]+)\.)+(?:` + GTLD + '|' + CCTLD + '|' + PUNYCODE + ')';
   const TCO_SOURCE = String.raw`^https?:\/\/t\.co\/([a-z0-9]+)(?:\?` + QUERY_CHARS + '*' + QUERY_END + ')?';
   const BAD_BEFORE_BARE_DOMAIN = /[-_.\/]$/;
+  // x.com, and not twitter-text: a bare domain ending in .md is a file name
+  // (README.md, CLAUDE.md), so it is not a link. https://example.md still is.
+  const BARE_MARKDOWN = /\.md$/i;
 
   /*
-   * The emoji X counts as one unit: twemoji-parser 14.0.0's pattern, verbatim
-   * (MIT, Copyright 2018 Twitter, Inc.). A sequence this pattern does not know
-   * is charged piece by piece, which is what X's own library does with it.
+   * The emoji x.com counts as one unit: @twemoji/parser 15.0.0's pattern (MIT,
+   * Copyright 2018 Twitter, Inc.) with U+1FAF0 in the skin-tone group only, as
+   * x.com has it. A sequence this pattern does not know is charged piece by
+   * piece, which is what x.com does with it: the phoenix of Emoji 15.1, bird,
+   * joiner and fire, costs 2 + 1 + 2 = 5.
    */
   const EMOJI_SOURCE =
     String.raw`(?:\ud83d\udc68\ud83c\udffb\u200d\u2764\ufe0f\u200d\ud83d\udc8b\u200d\ud83d\udc68\ud83c[\udffb-\udfff]|` +
@@ -336,15 +370,15 @@ const XCount = (() => {
     String.raw`\ud83d\udc15\u200d\ud83e\uddba|\ud83d\udc3b\u200d\u2744\ufe0f|\ud83d\udc41\u200d\ud83d\udde8|\ud83d\udc68\u200d\ud83d[\udc66\udc67]|` +
     String.raw`\ud83d\udc69\u200d\ud83d[\udc66\udc67]|\ud83d\udc6f\u200d\u2640\ufe0f|\ud83d\udc6f\u200d\u2642\ufe0f|\ud83d\ude2e\u200d\ud83d\udca8|` +
     String.raw`\ud83d\ude35\u200d\ud83d\udcab|\ud83e\udd3c\u200d\u2640\ufe0f|\ud83e\udd3c\u200d\u2642\ufe0f|\ud83e\uddde\u200d\u2640\ufe0f|` +
-    String.raw`\ud83e\uddde\u200d\u2642\ufe0f|\ud83e\udddf\u200d\u2640\ufe0f|\ud83e\udddf\u200d\u2642\ufe0f|\ud83d\udc08\u200d\u2b1b)|[#*0-9]\ufe0f?\u20e3|` +
-    String.raw`(?:[\u00A9\u00AE\u2122\u265f]\ufe0f)|` +
+    String.raw`\ud83e\uddde\u200d\u2642\ufe0f|\ud83e\udddf\u200d\u2640\ufe0f|\ud83e\udddf\u200d\u2642\ufe0f|\ud83d\udc08\u200d\u2b1b|\ud83d\udc26\u200d\u2b1b)|` +
+    String.raw`[#*0-9]\ufe0f?\u20e3|(?:[\u00A9\u00AE\u2122\u265f]\ufe0f)|` +
     String.raw`(?:\ud83c[\udc04\udd70\udd71\udd7e\udd7f\ude02\ude1a\ude2f\ude37\udf21\udf24-\udf2c\udf36\udf7d\udf96\udf97\udf99-\udf9b\udf9e\udf9f\udfcd\udfce\udfd4-\udfdf\udff3\udff5\udff7]|` +
     String.raw`\ud83d[\udc3f\udc41\udcfd\udd49\udd4a\udd6f\udd70\udd73\udd76-\udd79\udd87\udd8a-\udd8d\udda5\udda8\uddb1\uddb2\uddbc\uddc2-\uddc4\uddd1-\uddd3\udddc-\uddde\udde1\udde3\udde8\uddef\uddf3\uddfa\udecb\udecd-\udecf\udee0-\udee5\udee9\udef0\udef3]|` +
     String.raw`[\u203c\u2049\u2139\u2194-\u2199\u21a9\u21aa\u231a\u231b\u2328\u23cf\u23ed-\u23ef\u23f1\u23f2\u23f8-\u23fa\u24c2\u25aa\u25ab\u25b6\u25c0\u25fb-\u25fe\u2600-\u2604\u260e\u2611\u2614\u2615\u2618\u2620\u2622\u2623\u2626\u262a\u262e\u262f\u2638-\u263a\u2640\u2642\u2648-\u2653\u2660\u2663\u2665\u2666\u2668\u267b\u267f\u2692-\u2697\u2699\u269b\u269c\u26a0\u26a1\u26a7\u26aa\u26ab\u26b0\u26b1\u26bd\u26be\u26c4\u26c5\u26c8\u26cf\u26d1\u26d3\u26d4\u26e9\u26ea\u26f0-\u26f5\u26f8\u26fa\u26fd\u2702\u2708\u2709\u270f\u2712\u2714\u2716\u271d\u2721\u2733\u2734\u2744\u2747\u2757\u2763\u2764\u27a1\u2934\u2935\u2b05-\u2b07\u2b1b\u2b1c\u2b50\u2b55\u3030\u303d\u3297\u3299])(?:\ufe0f|` +
     String.raw`(?!\ufe0e))|(?:(?:\ud83c[\udfcb\udfcc]|\ud83d[\udd74\udd75\udd90]|[\u261d\u26f7\u26f9\u270c\u270d])(?:\ufe0f|(?!\ufe0e))|` +
     String.raw`(?:\ud83c[\udf85\udfc2-\udfc4\udfc7\udfca]|` +
     String.raw`\ud83d[\udc42\udc43\udc46-\udc50\udc66-\udc69\udc6e\udc70-\udc78\udc7c\udc81-\udc83\udc85-\udc87\udcaa\udd7a\udd95\udd96\ude45-\ude47\ude4b-\ude4f\udea3\udeb4-\udeb6\udec0\udecc]|` +
-    String.raw`\ud83e[\udd0c\udd0f\udd18-\udd1c\udd1e\udd1f\udd26\udd30-\udd39\udd3d\udd3e\udd77\uddb5\uddb6\uddb8\uddb9\uddbb\uddcd-\uddcf\uddd1-\udddd\udec3-\udec5\udef0-\udef6]|` +
+    String.raw`\ud83e[\udd0c\udd0f\udd18-\udd1c\udd1e\udd1f\udd26\udd30-\udd39\udd3d\udd3e\udd77\uddb5\uddb6\uddb8\uddb9\uddbb\uddcd-\uddcf\uddd1-\udddd\udec3-\udec5\udef0-\udef8]|` +
     String.raw`[\u270a\u270b]))(?:\ud83c[\udffb-\udfff])?|(?:\ud83c\udff4\udb40\udc67\udb40\udc62\udb40\udc65\udb40\udc6e\udb40\udc67\udb40\udc7f|` +
     String.raw`\ud83c\udff4\udb40\udc67\udb40\udc62\udb40\udc73\udb40\udc63\udb40\udc74\udb40\udc7f|` +
     String.raw`\ud83c\udff4\udb40\udc67\udb40\udc62\udb40\udc77\udb40\udc6c\udb40\udc73\udb40\udc7f|` +
@@ -362,8 +396,8 @@ const XCount = (() => {
     String.raw`\ud83c\uddfa\ud83c[\udde6\uddec\uddf2\uddf3\uddf8\uddfe\uddff]|\ud83c\uddfb\ud83c[\udde6\udde8\uddea\uddec\uddee\uddf3\uddfa]|` +
     String.raw`\ud83c\uddfc\ud83c[\uddeb\uddf8]|\ud83c\uddfd\ud83c\uddf0|\ud83c\uddfe\ud83c[\uddea\uddf9]|\ud83c\uddff\ud83c[\udde6\uddf2\uddfc]|` +
     String.raw`\ud83c[\udccf\udd8e\udd91-\udd9a\udde6-\uddff\ude01\ude32-\ude36\ude38-\ude3a\ude50\ude51\udf00-\udf20\udf2d-\udf35\udf37-\udf7c\udf7e-\udf84\udf86-\udf93\udfa0-\udfc1\udfc5\udfc6\udfc8\udfc9\udfcf-\udfd3\udfe0-\udff0\udff4\udff8-\udfff]|` +
-    String.raw`\ud83d[\udc00-\udc3e\udc40\udc44\udc45\udc51-\udc65\udc6a\udc6f\udc79-\udc7b\udc7d-\udc80\udc84\udc88-\udc8e\udc90\udc92-\udca9\udcab-\udcfc\udcff-\udd3d\udd4b-\udd4e\udd50-\udd67\udda4\uddfb-\ude44\ude48-\ude4a\ude80-\udea2\udea4-\udeb3\udeb7-\udebf\udec1-\udec5\uded0-\uded2\uded5-\uded7\udedd-\udedf\udeeb\udeec\udef4-\udefc\udfe0-\udfeb\udff0]|` +
-    String.raw`\ud83e[\udd0d\udd0e\udd10-\udd17\udd20-\udd25\udd27-\udd2f\udd3a\udd3c\udd3f-\udd45\udd47-\udd76\udd78-\uddb4\uddb7\uddba\uddbc-\uddcc\uddd0\uddde-\uddff\ude70-\ude74\ude78-\ude7c\ude80-\ude86\ude90-\udeac\udeb0-\udeba\udec0-\udec2\uded0-\uded9\udee0-\udee7]|` +
+    String.raw`\ud83d[\udc00-\udc3e\udc40\udc44\udc45\udc51-\udc65\udc6a\udc6f\udc79-\udc7b\udc7d-\udc80\udc84\udc88-\udc8e\udc90\udc92-\udca9\udcab-\udcfc\udcff-\udd3d\udd4b-\udd4e\udd50-\udd67\udda4\uddfb-\ude44\ude48-\ude4a\ude80-\udea2\udea4-\udeb3\udeb7-\udebf\udec1-\udec5\uded0-\uded2\uded5-\uded7\udedc-\udedf\udeeb\udeec\udef4-\udefc\udfe0-\udfeb\udff0]|` +
+    String.raw`\ud83e[\udd0d\udd0e\udd10-\udd17\udd20-\udd25\udd27-\udd2f\udd3a\udd3c\udd3f-\udd45\udd47-\udd76\udd78-\uddb4\uddb7\uddba\uddbc-\uddcc\uddd0\uddde-\uddff\ude70-\ude7c\ude80-\ude88\ude90-\udebd\udebf-\udec2\udece-\udedb\udee0-\udee8]|` +
     String.raw`[\u23e9-\u23ec\u23f0\u23f3\u267e\u26ce\u2705\u2728\u274c\u274e\u2753-\u2755\u2795-\u2797\u27b0\u27bf\ue50a])|\ufe0f`;
   // No emoji in the pattern starts below U+00A9 without a later unit at or above it.
   const MAY_HOLD_EMOJI = /[\u00A9-\uFFFF]/;
@@ -388,6 +422,8 @@ const XCount = (() => {
         protocol: /https?:\/\//iy,
         inDomain: new RegExp('^' + DOMAIN_CHARS + '$', 'i'),
         beforeLink: new RegExp('^' + PRECEDING.replace('|^)', ')') + '$', 'i'),
+        bareMarkdown: BARE_MARKDOWN,
+        nonAscii: NON_ASCII,
       };
     }
     return rx;
@@ -438,11 +474,20 @@ const XCount = (() => {
     return out;
   }
 
+  /*
+   * What punycode.js counts as needing encoding. x.com bundles a punycode that
+   * treats U+0000-U+001F and U+007F as ASCII, as punycode.js 2.3 and Node's
+   * built-in punycode do. The npm punycode twitter-text 3.1.0 declares (1.4.1)
+   * encodes them, and the first version of this port followed it, which made a
+   * domain label with a control character in it longer than x.com measures it.
+   */
+  const NON_ASCII = /[^\0-\x7F]/;
+
   /** Length of a label as DNS would carry it. Mirrors punycode.js `toASCII`, separators included. */
   function asciiLength(label) {
     let total = -1;
     for (const part of label.split(/[\x2E\u3002\uFF0E\uFF61]/)) {
-      total += 1 + (/[^\x20-\x7E]/.test(part) ? 4 + punycode(part).length : part.length);
+      total += 1 + (NON_ASCII.test(part) ? 4 + punycode(part).length : part.length);
     }
     return total;
   }
@@ -486,7 +531,8 @@ const XCount = (() => {
 
   /*
    * THE LINKS IN A TEXT, AS X FINDS THEM. A line-for-line port of
-   * `extractUrlsWithIndices`, including the part that surprises people: a
+   * `extractUrlsWithIndices` as x.com runs it, which is twitter-text's with the
+   * .md exception added. It includes the part that surprises people: a
    * candidate that fails a check is still consumed, so nothing inside it is
    * looked at again.
    *
@@ -576,6 +622,9 @@ const XCount = (() => {
         R.asciiDomain.lastIndex = 0;
         let a;
         while ((a = R.asciiDomain.exec(domain))) {
+          // x.com, not twitter-text: a bare domain ending in .md is a file name.
+          // It is passed over without moving asciiEnd, exactly as x.com's loop does.
+          if (BARE_MARKDOWN.test(a[0])) continue;
           const asciiStart = domain.indexOf(a[0], asciiEnd);
           asciiEnd = asciiStart + a[0].length;
           lastLength = a[0].length;

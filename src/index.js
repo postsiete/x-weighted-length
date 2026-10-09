@@ -3,12 +3,13 @@
  *
  * Zero dependencies. ESM. Node 18+ and every current browser.
  *
- * The rule is X's own, and all of it lives in `core.js`, which is generated from
- * the two packages X published (see tools/build-core.mjs):
+ * The rule is X's own, as x.com's composer runs it, and all of it lives in
+ * `core.js`. That is generated from the packages X published and the changes
+ * x.com has made to them since (see tools/build-core.mjs and tools/x-live.json):
  *
  *   1. Normalise the text to NFC.
- *   2. Find the links, the way twitter-text finds them. Each costs a flat 23.
- *   3. Find the emoji, with twemoji-parser's pattern. Each costs 2, however many
+ *   2. Find the links, the way x.com finds them. Each costs a flat 23.
+ *   3. Find the emoji, with x.com's emoji pattern. Each costs 2, however many
  *      code points built it.
  *   4. Every other UTF-16 unit costs 1 inside four published ranges and 2
  *      outside; a surrogate pair is one unit of 2.
@@ -38,7 +39,7 @@ export const URL_WEIGHT = XCount.LINK_WEIGHT;
 /** The published ceiling for a single post. */
 export const MAX_WEIGHTED_LENGTH = XCount.LIMIT;
 
-/** How many domain endings the link pattern knows: twitter-text's list, generic and country. */
+/** How many domain endings the link pattern knows: x.com's list, generic and country. */
 export const DOMAIN_ENDINGS = Object.freeze({ generic: XCount.counts.gtlds, country: XCount.counts.cctlds });
 
 /**

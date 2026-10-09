@@ -42,7 +42,7 @@ test('THE REFERENCE IMPLEMENTATION PASSES ITS OWN SUITE', () => {
    */
   const r = check(weightedLength);
   assert.equal(r.ok, true, format(r));
-  assert.equal(r.total, 71);
+  assert.equal(r.total, 74);
   assert.equal(r.failed, 0);
 });
 
@@ -57,7 +57,7 @@ test('every category declared is exercised, and none is smuggled in', () => {
  * 2. The runner detects wrongness — the part that matters
  * ========================================================================== */
 
-test('THE NAIVE CODE-POINT COUNTER FAILS 36 OF 71', () => {
+test('THE NAIVE CODE-POINT COUNTER FAILS 38 OF 74', () => {
   /*
    * `[...text].length` is what a wrong counter usually IS. The numbers are
    * pinned because they are the argument, and the SHAPE is the argument rather
@@ -66,13 +66,13 @@ test('THE NAIVE CODE-POINT COUNTER FAILS 36 OF 71', () => {
    */
   const r = check((t) => [...t].length);
   assert.equal(r.ok, false);
-  assert.equal(r.failed, 36);
-  assert.equal(r.passed, 35);
+  assert.equal(r.failed, 38);
+  assert.equal(r.passed, 36);
 
   assert.equal(r.byCategory.basic.failed, 0, 'plain ASCII is where a naive counter looks correct');
   assert.equal(r.byCategory['not-a-url'].failed, 0, 'it never over-counts a non-URL, because it never detects one');
 
-  assert.equal(r.byCategory.url.failed, 20, 'every URL vector must fail — this is the undercount that gets posts rejected');
+  assert.equal(r.byCategory.url.failed, 21, 'every URL vector must fail — this is the undercount that gets posts rejected');
   assert.equal(r.byCategory.url.passed, 0, 'not one link vector may pass by coincidence of length');
   assert.equal(r.byCategory.heavy.failed, 4, 'every CJK vector must fail');
   assert.ok(r.byCategory.emoji.failed >= 6, 'the emoji vectors must fail');
@@ -108,18 +108,18 @@ test('A COUNTER THAT THROWS IS A FAILURE, NOT A CRASH', () => {
   const r = check(() => {
     throw new Error('boom');
   });
-  assert.equal(r.failed, 71);
+  assert.equal(r.failed, 74);
   assert.equal(r.failures[0].threw, 'boom');
   assert.equal(r.failures[0].actual, undefined);
 });
 
-test('a counter that throws on ONE vector still reports the other 70', () => {
+test('a counter that throws on ONE vector still reports the other 73', () => {
   const r = check((t) => {
     if (t === '') throw new Error('empty input not supported');
     return weightedLength(t);
   });
   assert.equal(r.failed, 1);
-  assert.equal(r.passed, 70);
+  assert.equal(r.passed, 73);
   assert.match(r.failures[0].threw, /empty input/);
 });
 
@@ -135,11 +135,11 @@ test('check() refuses anything that is not a function', () => {
 
 test('only/skip narrow by category, and the report says how many ran', () => {
   const only = check(weightedLength, { only: ['url'] });
-  assert.equal(only.total, 20);
+  assert.equal(only.total, 21);
   assert.deepEqual(Object.keys(only.byCategory), ['url']);
 
   const skip = check(weightedLength, { skip: ['url'] });
-  assert.equal(skip.total, 51);
+  assert.equal(skip.total, 53);
   assert.ok(!('url' in skip.byCategory));
 
   assert.equal(check(weightedLength, { only: ['nonexistent'] }).total, 0);
@@ -167,12 +167,12 @@ test('THE OUTPUT PRINTS THE ARITHMETIC, NOT JUST THE TWO NUMBERS', () => {
   assert.ok(out.includes(r.failures[0].why), 'the failure explanation is missing from the output');
   assert.ok(out.includes(r.failures[0].name));
   assert.match(out, /FAIL/);
-  assert.match(out, /url \d+\/20/, 'the per-category tally is missing');
+  assert.match(out, /url \d+\/21/, 'the per-category tally is missing');
 });
 
 test('a clean run says so and prints no failures', () => {
   const out = format(check(weightedLength));
-  assert.match(out, /PASS {2}71\/71/);
+  assert.match(out, /PASS {2}74\/74/);
   assert.ok(!out.includes('FAIL'));
 });
 
@@ -236,13 +236,13 @@ test('the CLI refuses to guess between several exported functions', () => {
   assert.equal(runCli(two, ['alpha']), 1, 'naming the export makes it runnable');
 });
 
-test('THE COUNTER THIS PACKAGE SHIPPED WITH FAILS 15 OF 71, and passed every vector it was written with', () => {
+test('THE COUNTER THIS PACKAGE SHIPPED WITH FAILS 15 OF 74, and passed every vector it was written with', () => {
   /*
    * The first counter in this package matched a link as "http(s):// or www.,
    * then everything up to the next space", plus bare domains on a list of 49
    * endings its author thought of. It passed all 49 of the vectors written
    * alongside it. Run against X's own library it was wrong on 30 of 54 everyday
-   * link shapes, and the 22 vectors added afterwards catch it on 15.
+   * link shapes, and the vectors added since catch it on 15.
    *
    * It is kept here, in miniature, for one reason: a suite has to be able to
    * fail the counter its own author believed in. If this stops failing, the
@@ -296,7 +296,7 @@ test('THE COUNTER THIS PACKAGE SHIPPED WITH FAILS 15 OF 71, and passed every vec
   }
   const failed = new Set(r.failures.map((f) => f.name));
   // the one that costs somebody a rejected post, and the two that annoy the most people
-  for (const name of ['url-full-stop-is-the-281st', 'url-then-full-stop', 'not-a-url-email', 'url-filename-that-is-a-domain']) {
+  for (const name of ['url-full-stop-is-the-281st', 'url-then-full-stop', 'not-a-url-email', 'url-government-ending']) {
     assert.ok(failed.has(name), `${name} no longer catches the old counter`);
   }
   // and it still passes everything it was written with
@@ -466,5 +466,5 @@ test('SELFCHECK RUNS THE SHIPPED LIBRARY THROUGH THE SHIPPED CLI', () => {
     encoding: 'utf8',
     env: { ...process.env, NODE_TEST_CONTEXT: undefined, NODE_OPTIONS: undefined },
   });
-  assert.match(out, /PASS {2}71\/71/);
+  assert.match(out, /PASS {2}74\/74/);
 });

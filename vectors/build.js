@@ -18,10 +18,11 @@
  * FILE if they disagree. The expected value and the code that computes it come
  * from different places, and the build is where they have to meet.
  *
- * A second check lives in test/reference/reference.test.js: X's own library (twitter-text
- * with the last emoji table it published) must agree with every vector too. A
- * vector that this package passes and X's library fails is a mistake in the
- * vector, however good its arithmetic reads.
+ * A second check lives in test/reference/x-live.test.js: the rules x.com's
+ * composer runs, rebuilt from X's published packages plus what the live site
+ * does differently and checked against x.com itself, must agree with
+ * every vector too. A vector that this package passes and x.com's rules fail is
+ * a mistake in the vector, however good its arithmetic reads.
  *
  * When they disagree, exactly one of two things is true and the message says so:
  * either the implementation has a bug, or the stated arithmetic does. Both are
@@ -50,7 +51,7 @@ const CATEGORIES = {
     'Characters outside the light ranges, which cost 2. CJK is the common case and the reason a 200-character Japanese post does not fit.',
   emoji:
     'The one-emoji-one-unit rule: an emoji in X\'s table costs 2 however many code points build it. Weighting the code points one at a time is too high on every emoji built from more than one.',
-  url: 'The flat 23, and where X finds a link: with or without a protocol, on any of the 1,574 endings in its list, stopping before the punctuation that ends a sentence.',
+  url: 'The flat 23, and where X finds a link: with or without a protocol, on any of the 1,581 endings x.com recognises, stopping before the punctuation that ends a sentence.',
   'not-a-url':
     'Text that must NOT be charged 23: an email address, an ending that is not one, a domain glued to a "#". A spurious 23 sends an author rewriting copy that already fitted.',
   normalisation: 'The same visible string must cost the same however it was encoded.',
@@ -172,6 +173,13 @@ const VECTORS = [
     expected: 2,
     category: 'emoji',
     why: 'Person + ZWJ + wrench = one emoji at 2. Per code point it is 200+100+200 = 5 after dividing by scale, and 5 is the number reported in twitter-text#369.',
+  },
+  {
+    name: 'emoji-newer-than-the-published-table',
+    text: String.fromCodePoint(0x1f426, 0x200d, 0x2b1b),
+    expected: 2,
+    category: 'emoji',
+    why: 'Bird + ZWJ + black large square is the black bird, from Emoji 15.0, and x.com charges it as one emoji: 2. The last emoji table X published, twemoji-parser 14.0.0 from 2022, does not know it, so a counter built on that table charges the pieces: 2 + 1 + 2 = 5.',
   },
   {
     name: 'emoji-zwj-family',
@@ -316,18 +324,25 @@ const VECTORS = [
     why: '256 + 1 space + 23 + 1 full stop = 281, one over the limit. A counter that takes the stop into the link says 280 and calls this postable. This is the vector that costs somebody a rejected post.',
   },
   {
-    name: 'url-filename-that-is-a-domain',
-    text: 'I updated README.md',
-    expected: 33,
+    name: 'url-markdown-ending-with-protocol',
+    text: 'https://example.md',
+    expected: 23,
     category: 'url',
-    why: '"I updated " is 10 and README.md is a link at 23, because .md is the country ending of Moldova: 33. A counter that sees nine ordinary characters reports 19.',
+    why: 'With a protocol, .md is an ending like any other (it is the country ending of Moldova), so this is a link at 23. The exception x.com makes for .md applies to bare domains only. Compare not-a-url-markdown-file.',
+  },
+  {
+    name: 'url-ending-newer-than-the-published-list',
+    text: 'example.music',
+    expected: 23,
+    category: 'url',
+    why: '.music is one of seven endings x.com recognises that are missing from the list X published in twitter-text, so this bare domain is a link at 23. A counter that uses the published list sees thirteen ordinary characters and reports 13.',
   },
   {
     name: 'url-government-ending',
     text: 'whitehouse.gov',
     expected: 23,
     category: 'url',
-    why: 'A bare domain on an ending outside the handful everyone remembers. The list has 1,574 of them; a counter with a short list of its own reports 14.',
+    why: 'A bare domain on an ending outside the handful everyone remembers. x.com recognises 1,581 of them; a counter with a short list of its own reports 14.',
   },
   {
     name: 'url-missing-space-makes-a-link',
@@ -371,7 +386,14 @@ const VECTORS = [
     text: 'see index.js for details',
     expected: 24,
     category: 'not-a-url',
-    why: '.js is not a domain ending, so this is 24 plain characters. A counter matching any dotted token charges 23 for the filename. Compare url-filename-that-is-a-domain, where .md is an ending.',
+    why: '.js is not a domain ending, so this is 24 plain characters. A counter matching any dotted token charges 23 for the filename. Compare not-a-url-markdown-file, where .md is an ending and the file name is still not charged as a link.',
+  },
+  {
+    name: 'not-a-url-markdown-file',
+    text: 'I updated README.md',
+    expected: 19,
+    category: 'not-a-url',
+    why: '"I updated " is 10 and README.md is 9 ordinary characters: 19. .md is the country ending of Moldova, and X\'s published library makes README.md a link at 23, but x.com does not: there a bare domain ending in .md is a file name, not a link. With https:// in front it is a link again; see url-markdown-ending-with-protocol.',
   },
   {
     name: 'not-a-url-version',
@@ -586,8 +608,8 @@ function main() {
 
   const out = {
     $comment:
-      'Conformance vectors for X/Twitter weighted character counting. Expected values are derived from the published rules and stated as arithmetic in each `why`; they are not snapshots of any implementation. See README.md, including how to falsify them.',
-    version: 2,
+      "Conformance vectors for X/Twitter weighted character counting. Expected values are derived from the rules x.com's composer applies and stated as arithmetic in each `why`; they are not snapshots of any implementation. See README.md, including how to falsify them.",
+    version: 3,
     generated: null, // filled in below
     categories: CATEGORIES,
     vectors: VECTORS.map((v) => ({

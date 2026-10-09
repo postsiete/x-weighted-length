@@ -1,5 +1,5 @@
 /**
- * This package against X's own library, on input nobody chose.
+ * This package against X's published library, on input nobody chose.
  *
  *   npm install
  *   npm run test:reference
@@ -10,27 +10,33 @@
  *
  * `npm test` needs nothing installed and proves the package agrees with the
  * cases somebody wrote down: its own vectors and twitter-text's conformance
- * suite. This file needs twitter-text and twemoji-parser installed (they are
- * dev dependencies; the package itself still depends on nothing), and proves
- * the stronger thing: on a million and a half strings generated at random, the
- * count and the links are the same as the ones X's own code produces.
+ * suite. This run needs the dev dependencies (the package itself still depends
+ * on nothing) and proves two stronger things.
  *
- * Three claims are pinned here, and the README makes all three:
+ * x-live.test.js holds the package to x.com: the same answers as the composer
+ * gave, on 1,731,072 strings. This file holds it to what X PUBLISHED, and
+ * pins exactly how far the two are apart:
  *
- *   1. The link patterns in src/core.js have the same source text as
- *      twitter-text 3.1.0's, and the emoji pattern is twemoji-parser 14.0.0's.
- *   2. The core gives the same weighted length, and finds the same links at the
- *      same positions, as twitter-text's algorithm run with that emoji table.
- *   3. twitter-text as npm installs it today is NOT that: it pins an emoji table
- *      from October 2018 (twemoji-parser 11.0.2), and so it fails exactly one of
- *      the 71 vectors: the mechanic, twitter-text issue #369.
+ *   1. The link patterns in src/core.js are twitter-text 3.1.0's with x.com's
+ *      edits and no others: undo the seven endings and U+FEFF, and what is
+ *      left has twitter-text's source text, character for character. The emoji
+ *      pattern is @twemoji/parser 15.0.0's with x.com's one move.
+ *   2. With x.com's four changes switched off, the rebuilt reference gives
+ *      twitter-text's own answers on every string here and in corpus.js. With
+ *      them on, it gives x.com's (x-live.test.js). So those four changes are
+ *      the whole difference between X's published library and x.com.
+ *   3. The package gives x.com's answers on the million and a half strings
+ *      generated here as well.
+ *   4. X's published library fails exactly four vectors as npm installs it,
+ *      and exactly three with the last emoji table X published: the README
+ *      says so, so the numbers are pinned.
  *
- * Claim 3 needs both emoji tables at once, which is why twemoji-parser 14.0.0
- * is a dev dependency in its own right: npm then keeps 11.0.2 nested under
- * twitter-text, exactly where it lands for everybody else, and puts 14.0.0 at
- * the top. `walk` below is twitter-text's `parseTweet` loop with the table
- * passed in, and the first test checks that it IS that loop before anything
- * else relies on it.
+ * Claim 4 needs both of X's emoji tables at once, which is why twemoji-parser
+ * 14.0.0 is a dev dependency in its own right: npm then keeps 11.0.2 nested
+ * under twitter-text, exactly where it lands for everybody else, and puts
+ * 14.0.0 at the top. `walk` below is twitter-text's `parseTweet` loop with the
+ * table passed in, and the test after the version checks proves it IS that
+ * loop before anything else relies on it.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,6 +49,8 @@ import { fileURLToPath } from 'node:url';
 import { XCount } from '../../src/core.js';
 import { weightedLength } from '../../src/index.js';
 import { check } from '../../src/conformance.js';
+import { makeCorpus } from './corpus.js';
+import { xcom, counter, SWITCHES, EDITS } from './x-live-reference.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const require = createRequire(import.meta.url);
@@ -55,8 +63,8 @@ function load(name) {
   }
 }
 const twitterText = load('twitter-text');
-const table14 = load('twemoji-parser');
-const table11 = require(require.resolve('twemoji-parser', { paths: [path.dirname(require.resolve('twitter-text/package.json'))] }));
+const table2022 = load('twemoji-parser');
+const table2018 = require(require.resolve('twemoji-parser', { paths: [path.dirname(require.resolve('twitter-text/package.json'))] }));
 const version = (id, from) => JSON.parse(readFileSync(require.resolve(`${id}/package.json`, from ? { paths: [from] } : undefined), 'utf8')).version;
 
 const LIGHT = [[0x0000, 0x10ff], [0x2000, 0x200d], [0x2010, 0x201f], [0x2032, 0x2037]];
@@ -83,8 +91,8 @@ function walk(text, table) {
   }
   return weight / 100;
 }
-const xCounts = (text) => walk(text, table14);
-const xLinks = (text) => twitterText.extractUrlsWithIndices(text.normalize()).map((u) => `${u.indices[0]}:${u.indices[0] + u.url.length}`).join(',');
+const publishedCounts = (text) => walk(text, table2022);
+const publishedLinks = (text) => twitterText.extractUrlsWithIndices(text.normalize()).map((u) => `${u.indices[0]}:${u.indices[0] + u.url.length}`).join(',');
 const ourLinks = (text) => XCount.links(text).map((l) => `${l.start}:${l.end}`).join(',');
 
 /* ---- input nobody chose: seeded, so a failure can be run again ---- */
@@ -150,6 +158,7 @@ function corpus() {
   return out;
 }
 const CORPUS = corpus();
+const BOTH = CORPUS.concat(...[0, 1, 2, 3].map((part) => makeCorpus(part)));
 const README = readFileSync(path.join(ROOT, 'README.md'), 'utf8');
 const codes = (s) => [...s].map((c) => c.codePointAt(0).toString(16)).join(' ');
 
@@ -158,6 +167,7 @@ const codes = (s) => [...s].map((c) => c.codePointAt(0).toString(16)).join(' ');
 test('the versions compared against are the ones the README names', () => {
   assert.equal(version('twitter-text'), '3.1.0');
   assert.equal(version('twemoji-parser'), '14.0.0');
+  assert.equal(version('@twemoji/parser'), '15.0.0');
   // What npm installs under twitter-text today, with no help from us.
   assert.equal(version('twemoji-parser', path.dirname(require.resolve('twitter-text/package.json'))), '11.0.2');
 });
@@ -167,32 +177,40 @@ test('src/core.js is exactly what the generator produces from those packages', (
   assert.match(out, /in step/);
 });
 
-test("THE LINK PATTERNS HAVE THE SAME SOURCE TEXT AS X'S, CHARACTER FOR CHARACTER", () => {
+test("THE LINK PATTERNS ARE TWITTER-TEXT'S, WITH x.com'S EDITS AND NO OTHERS", () => {
   const theirs = (name) => {
     const mod = require(`twitter-text/dist/regexp/${name}`);
     return mod.default || mod;
   };
+  const undo = (source) =>
+    source
+      .split(EDITS.generic.live).join(EDITS.generic.published)
+      .split(EDITS.country.live).join(EDITS.country.published)
+      .split(EDITS.invalid.live).join(EDITS.invalid.published);
   const ours = XCount.patterns();
-  assert.equal(ours.link.source, theirs('extractUrl').source);
-  assert.equal(ours.asciiDomain.source, theirs('validAsciiDomain').source);
+  // Take out the seven endings and put U+FEFF back, and what is left is twitter-text's, character for character.
+  assert.equal(undo(ours.link.source), theirs('extractUrl').source);
+  assert.equal(undo(ours.asciiDomain.source), theirs('validAsciiDomain').source);
   assert.equal(ours.tco.source, theirs('validTcoUrl').source);
-  // One difference, and it is deliberate: X scans with the link pattern ("g");
-  // the core tries it one position at a time ("y"), behind a pre-check that the
-  // comparison further down proves changes nothing.
+  // and the edits are really there
+  assert.notEqual(ours.link.source, theirs('extractUrl').source);
   assert.equal(theirs('extractUrl').flags, 'gi');
   assert.equal(ours.link.flags, 'iy');
 });
 
-test("the emoji pattern is twemoji-parser 14.0.0's, verbatim", () => {
-  const theirs = require('twemoji-parser/dist/lib/regex.js').default;
-  // Same pattern; the core writes non-ASCII characters as escapes, so compare with both spelled that way.
+test("THE EMOJI PATTERN IS @twemoji/parser 15.0.0's, WITH x.com'S ONE MOVE", () => {
   const B = String.fromCharCode(92);
   const spell = (s) =>
     s
       .replace(/[^\x20-\x7e]/g, (c) => `${B}u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
       .replace(new RegExp(`${B}${B}u([0-9a-fA-F]{4})`, 'g'), (m, h) => `${B}u${h.toLowerCase()}`);
-  assert.equal(spell(XCount.patterns().emoji.source), spell(theirs.source));
-  assert.equal(XCount.patterns().emoji.flags, theirs.flags);
+  assert.equal(spell(XCount.patterns().emoji.source), spell(EDITS.emoji.live));
+  // One alternative fewer, one range one wider: thirteen characters shorter than 15.0.0's.
+  assert.equal(EDITS.emoji.published15.length - EDITS.emoji.live.length, 13);
+  // With U+FE0F after it, 15.0.0 makes the crossed fingers one emoji; x.com charges the selector too.
+  const crossed = String.fromCodePoint(0x1faf0, 0xfe0f);
+  assert.equal(XCount.weightedLength(crossed), 4);
+  assert.equal(new RegExp(EDITS.emoji.published15, 'g').exec(crossed)[0], crossed);
 });
 
 test("the walk used below IS twitter-text's own loop", () => {
@@ -200,67 +218,77 @@ test("the walk used below IS twitter-text's own loop", () => {
   let n = 0;
   for (const s of CORPUS) {
     if (n++ % 3) continue; // a third of the corpus is plenty to pin a 20-line loop
-    const a = walk(s, table11);
+    const a = walk(s, table2018);
     const b = twitterText.parseTweet(s).weightedLength;
     if (a !== b) assert.fail(`walk ${a}, parseTweet ${b} for ${JSON.stringify(s)} [${codes(s)}]`);
   }
 });
 
-test(`THE SAME COUNT AS X'S LIBRARY ON ${CORPUS.length.toLocaleString('en')} GENERATED STRINGS`, () => {
+test(`WITH x.com'S FOUR CHANGES SWITCHED OFF, THE REFERENCE IS TWITTER-TEXT, on ${BOTH.length.toLocaleString('en')} strings`, () => {
+  const published = counter(SWITCHES.NONE);
+  let differ = 0;
+  const first = [];
+  for (const s of BOTH) {
+    const a = published.parseTweet(s).weightedLength;
+    const b = publishedCounts(s);
+    const la = published.linkSpans(s);
+    const lb = publishedLinks(s);
+    if (a !== b || la !== lb) {
+      differ++;
+      if (first.length < 10) first.push(`  reference ${a} [${la}], twitter-text ${b} [${lb}]: ${JSON.stringify(s)} [${codes(s)}]`);
+    }
+  }
+  assert.equal(differ, 0, `\n${differ} strings differ, so the four changes are not the whole difference. The first few:\n${first.join('\n')}\n`);
+});
+
+test(`THE PACKAGE COUNTS WHAT x.com COUNTS on these ${CORPUS.length.toLocaleString('en')} strings too`, () => {
   let differ = 0;
   const first = [];
   for (const s of CORPUS) {
     const ours = XCount.weightedLength(s);
-    const theirs = xCounts(s);
-    if (ours !== theirs) {
+    const theirs = xcom.parseTweet(s).weightedLength;
+    const ol = ourLinks(s);
+    const tl = xcom.linkSpans(s);
+    if (ours !== theirs || ol !== tl) {
       differ++;
-      if (first.length < 10) first.push(`  ours ${ours}, X's ${theirs}: ${JSON.stringify(s)} [${codes(s)}]`);
+      if (first.length < 10) first.push(`  ours ${ours} [${ol}], x.com ${theirs} [${tl}]: ${JSON.stringify(s)} [${codes(s)}]`);
     }
   }
   assert.equal(differ, 0, `\n${differ} strings counted differently. The first few:\n${first.join('\n')}\n`);
 });
 
-test('THE SAME LINKS AT THE SAME POSITIONS', () => {
-  let differ = 0;
-  const first = [];
-  for (const s of CORPUS) {
-    if (s.indexOf('.') === -1) continue; // neither side can find a link without a dot
-    const ours = ourLinks(s);
-    const theirs = xLinks(s);
-    if (ours !== theirs) {
-      differ++;
-      if (first.length < 10) first.push(`  ours [${ours}], X's [${theirs}]: ${JSON.stringify(s)}`);
-    }
-  }
-  assert.equal(differ, 0, `\n${differ} strings had different links. The first few:\n${first.join('\n')}\n`);
-});
-
-test("X'S LIBRARY AGREES WITH EVERY VECTOR, given the last emoji table X published", () => {
-  const r = check(xCounts);
+test("X'S PUBLISHED LIBRARY, WITH THE LAST EMOJI TABLE X PUBLISHED, FAILS EXACTLY THREE VECTORS", () => {
+  const r = check(publishedCounts);
   assert.deepEqual(
-    r.failures.map((f) => `${f.name}: expected ${f.expected}, X's library says ${f.actual}`),
-    [],
+    r.failures.map((f) => [f.name, f.expected, f.actual]),
+    [
+      ['emoji-newer-than-the-published-table', 2, 5],
+      ['url-ending-newer-than-the-published-list', 23, 13],
+      ['not-a-url-markdown-file', 19, 33],
+    ],
   );
-  assert.equal(r.total, 71);
-  assert.ok(README.includes('| `twitter-text` 3.1.0 with the last emoji table X published | 71 / 71 |'), 'the README row is stale');
+  assert.equal(r.passed, 71);
+  assert.ok(README.includes('| `twitter-text` 3.1.0 with the last emoji table X published | 71 / 74 |'), 'the README row is stale');
 });
 
-test('TWITTER-TEXT AS NPM INSTALLS IT FAILS ONE VECTOR: the mechanic, its own issue #369', () => {
+test('TWITTER-TEXT AS NPM INSTALLS IT FAILS FOUR: those three, and the mechanic, its own issue #369', () => {
   /*
-   * The README says this in as many words, so it is pinned. twitter-text 3.1.0
-   * depends on twemoji-parser ^11.0.2, whose table is from October 2018 and has
-   * never heard of the person-with-wrench sequence added a year later. Everything else
-   * in the suite it gets right, which is the point: these vectors and X's
-   * library disagree in exactly one place, and that place is a bug filed
-   * against X's library itself.
+   * twitter-text 3.1.0 depends on twemoji-parser ^11.0.2, whose table is from
+   * October 2018 and has never heard of the person-with-wrench sequence added a
+   * year later. The other three are where x.com has moved on from the library.
    */
   const r = check((t) => twitterText.parseTweet(t).weightedLength);
   assert.deepEqual(
     r.failures.map((f) => [f.name, f.expected, f.actual]),
-    [['emoji-zwj-mechanic', 2, 5]],
+    [
+      ['emoji-zwj-mechanic', 2, 5],
+      ['emoji-newer-than-the-published-table', 2, 5],
+      ['url-ending-newer-than-the-published-list', 23, 13],
+      ['not-a-url-markdown-file', 19, 33],
+    ],
   );
   assert.equal(r.passed, 70);
-  assert.ok(README.includes('| `twitter-text` 3.1.0, as npm installs it today | 70 / 71 |'), 'the README row is stale');
+  assert.ok(README.includes('| `twitter-text` 3.1.0, as npm installs it today | 70 / 74 |'), 'the README row is stale');
   // and through the function most people call
   assert.equal(twitterText.getTweetLength(String.fromCodePoint(0x1f9d1, 0x200d, 0x1f527)), 5);
 });

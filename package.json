@@ -1,7 +1,7 @@
 {
   "name": "x-weighted-length",
   "version": "1.0.0",
-  "description": "What X/Twitter actually charges for a post: the weighted character count, ported from X's own open-source rules, with 71 conformance vectors and a runner that checks ANY implementation against them. A link is 23, and the full stop after it is not part of it. Zero dependencies.",
+  "description": "What X/Twitter actually charges for a post: the weighted character count as x.com's composer runs it, ported from X's open-source rules plus the four changes x.com has made to them, with 74 conformance vectors and a runner that checks ANY implementation against them. A link is 23, and the full stop after it is not part of it. Zero dependencies.",
   "type": "module",
   "main": "src/index.js",
   "exports": {
@@ -15,6 +15,7 @@
     "src",
     "bin",
     "vectors/vectors.json",
+    "tools/x-live.json",
     "README.md",
     "LICENSE",
     "NOTICE",
@@ -64,6 +65,8 @@
     "url": "https://github.com/postsiete/x-weighted-length/issues"
   },
   "devDependencies": {
+    "@twemoji/parser": "15.0.0",
+    "punycode": "2.3.1",
     "twemoji-parser": "14.0.0",
     "twitter-text": "3.1.0"
   }
