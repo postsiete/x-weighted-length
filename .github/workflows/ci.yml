@@ -24,8 +24,9 @@ jobs:
       - run: node vectors/build.js
       - run: git diff --exit-code vectors/vectors.json
 
-      # The package's own vectors, the properties, and the 1,706 cases from
-      # twitter-text's conformance suite.
+      # The package's own vectors, the properties, the 1,706 cases from
+      # twitter-text's conformance suite, and the cases where x.com differs
+      # from that library.
       - run: npm test
 
       # The shipped library, through the shipped CLI, against the shipped
@@ -34,15 +35,17 @@ jobs:
       - run: npm run selfcheck
 
   reference:
-    # This package against X's own library.
+    # This package against x.com, and against X's published library.
     #
     # A separate job because it is the only one that installs anything:
-    # twitter-text and twemoji-parser, as dev dependencies. It checks that
-    # src/core.js is what the generator produces from those two packages, that
-    # the link patterns have the same source text as X's, and that the count
-    # and the links agree with X's library on a million and a half generated
-    # strings. `npm ci` uses the lock file, so the versions compared against are
-    # the ones the README names.
+    # twitter-text, both emoji tables and punycode, as dev dependencies. It
+    # checks that src/core.js is what the generator produces, with every
+    # pattern carrying the fingerprint recorded on x.com; that the count and
+    # the links match the answers x.com's composer gave on 1,731,072 strings,
+    # and a million and a half more; and that switching off x.com's four
+    # changes gives twitter-text's own answers on all of them. `npm ci` uses
+    # the lock file, so the versions compared against are the ones the README
+    # names. It takes a few minutes.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
